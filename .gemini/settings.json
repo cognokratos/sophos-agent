@@ -1,7 +1,11 @@
 {
 	"mcpServers": {
 		"svelte": {
-			"url": "https://mcp.svelte.dev/mcp"
+			"httpUrl": "https://mcp.svelte.dev/mcp"
+		},
+		"context7": {
+			"httpUrl": "https://mcp.context7.com/mcp",
+			"headers": { "CONTEXT7_API_KEY": "${CONTEXT7_API_KEY}" }
 		}
 	}
 }
