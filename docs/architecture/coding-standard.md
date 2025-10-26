@@ -116,3 +116,20 @@
 * ESLint (TS strict) + Prettier; run `pnpm lint` and `pnpm format` on pre-commit.
 * No dead code. Remove `console.*` except in development guarded blocks.
 * Keep functions small; prefer pure helpers; avoid shared mutable state between graph nodes.
+
+## Context Retrieval Standard (Context7)
+
+All BMAD Dev agents **must** use Context7 as the authoritative source of documentation.
+
+**Rules:**
+1. Before writing or refactoring any code, invoke:
+   - `use context7`
+   - or `use library /<context7-id>@<version>`
+2. When implementing a story, load all relevant docs from Context7
+   (frameworks, APIs, libraries, and internal SDKs).
+3. If local or cached docs differ from Context7’s latest version,
+   prefer the **latest version** unless the story explicitly pins one.
+4. Always include a “Context7 confirmation” step in your reasoning summary.
+   Example:
+   > “Verified React Query v5 via Context7 (latest patch 5.51.3).”
+5. If Context7 is unreachable, halt and escalate to the Scrum Master agent.
