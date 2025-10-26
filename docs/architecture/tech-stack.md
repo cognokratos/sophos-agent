@@ -62,11 +62,11 @@ Local-first, teaching-focused stack with transparent reasoning, one-command Dock
 
 ## Version pins (suggested minimums)
 
-* Node 20.x LTS
-* pnpm 9.x
+* Node 24.x LTS
+* pnpm 10.x
 * SvelteKit ^2
 * LangGraph.js: current stable (pin in `package.json`)
 * Ollama: pinned image tag
 * MCP servers: pinned image tags
-* Vitest ^2, Playwright ^1.47
-* ESLint ^9, TypeScript ^5.6, Prettier ^3
+* Vitest ^3, Playwright ^1.55
+* ESLint ^9, TypeScript ^5.9, Prettier ^3

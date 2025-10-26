@@ -3,7 +3,7 @@
 ## 7.1 Monorepo Layout
 
 ```
-apps/web (SvelteKit + Agent) • packages/shared (TS types)
+src/ (SvelteKit + Agent)
 infra/ (compose, Dockerfiles, profiles) • data/logs/ • scripts/ • docs/
 ```
 

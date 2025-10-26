@@ -1,18 +1,18 @@
-# sv
+# Sophos Agent
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+## Quickstart
 
-## Creating a project
-
-If you're seeing this, you've probably already done this step. Congrats!
+To start the entire system, run the following command:
 
 ```sh
-# create a new project in the current directory
-npx sv create
-
-# create a new project in my-app
-npx sv create my-app
+docker compose -f infra/compose.yml up --env-file .env --build -d
 ```
+
+This will build the `web` service and start all the required services. You can then access the web interface at [http://localhost:5173](http://localhost:5173).
+
+---
+
+Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
 
 ## Developing
 

@@ -2,42 +2,40 @@
 
 ```
 sofos-agent/
-├── apps/
-│   └── web/                         # SvelteKit + Agent (v0 monolith)
-│       ├── src/
-│       │   ├── lib/
-│       │   │   ├── agent/           # LangGraph.js graphs, nodes, policies
-│       │   │   ├── mcp/             # MCP adapters (Memory, Fetch)
-│       │   │   ├── persistence/     # Markdown + trace.jsonl writers/readers
-│       │   │   ├── error/           # ApiError helpers, guards, mappers
-│       │   │   └── metrics/         # in-process counters/histograms
-│       │   └── routes/
-│       │       └── api/
-│       │           ├── chat/+server.ts   # POST /api/chat (SSE + fallback)
-│       │           ├── models/+server.ts # GET /api/models (Ollama proxy)
-│       │           ├── logs/[sessionId]/+server.ts # GET logs
-│       │           ├── healthz/+server.ts # liveness
-│       │           └── readyz/+server.ts  # readiness (ollama + model)
-│       ├── app.d.ts                   # SvelteKit ambient types
-│       ├── hooks.server.ts            # requestId, error normalization
-│       └── app.html                   # base template
 │
-├── packages/
-│   └── shared/                        # Reusable types & contracts
-│       ├── chat.ts                    # Message, ToolCall, ChatRequest, TraceNote
-│       ├── error.ts                   # ApiError envelope
-│       └── index.ts
+├── src/                              # SvelteKit + Agent (v0 monolith)
+│   ├── lib/
+│   │   ├── agent/                    # LangGraph.js graphs, nodes, policies
+│   │   │   ├── mcp/                  # MCP adapters (Memory, Fetch)
+│   │   │   ├── persistence/          # Markdown + trace.jsonl writers/readers
+│   │   │   ├── error/                # ApiError helpers, guards, mappers
+│   │   │   └── metrics/              # in-process counters/histograms
+│   │   ├── chat.ts                   # Message, ToolCall, ChatRequest, TraceNote
+│   │   ├── error.ts                  # ApiError envelope
+│   │   └── index.ts
+│   └── routes/
+│   │   └── api/
+│   │       ├── chat/+server.ts   # POST /api/chat (SSE + fallback)
+│   │       ├── models/+server.ts # GET /api/models (Ollama proxy)
+│   │       ├── logs/[sessionId]/+server.ts # GET logs
+│   │       ├── healthz/+server.ts # liveness
+│   │       └── readyz/+server.ts # readiness (ollama + model)
+│   ├── app.css                       # tailwind css
+│   ├── app.html                      # base template
+│   ├── app.d.ts                      # SvelteKit ambient types
+│   └── hooks.server.ts               # requestId, error normalization
 │
 ├── infra/
-│   ├── docker-compose.yml             # web, ollama, mcp-memory, mcp-fetch
-│   ├── Dockerfile.web                 # Node 20, pnpm, build, run
-│   ├── Dockerfile.mcp                 # base MCP image
+│   ├── compose.yml                    # web, ollama, mcp-memory, mcp-fetch
+│   ├── Dockerfile                     # Node 24, pnpm, build, run
 │   └── profiles/
 │       ├── compose.warmup.yml         # pre-pull images + model
 │       ├── compose.publish.yml        # bind to 0.0.0.0 for demos
 │       └── compose.split.yml          # optional agent split-service
 │
 ├── data/
+│   ├── memory/                        # Memory MCP data
+│   ├── fetch/                         # Fetch MCP data
 │   └── logs/                          # Markdown turns + trace.jsonl (bind-mounted)
 │
 ├── scripts/
@@ -62,10 +60,9 @@ sofos-agent/
 
 ## Notable directories
 
-* `apps/web/src/lib/agent/` — Graph orchestration with LangGraph.js; nodes emit TraceNotes.
-* `apps/web/src/lib/mcp/` — MCP bridge via adapters; register tools here.
-* `apps/web/src/lib/persistence/` — Markdown + JSONL writers; abstracted behind a small interface to allow SQLite later.
-* `packages/shared/` — The source of truth for contracts (`Message`, `ChatRequest`, `ApiError`, `TraceNote`).
+* `src/lib/agent/` — Graph orchestration with LangGraph.js; nodes emit TraceNotes.
+* `src/lib/mcp/` — MCP bridge via adapters; register tools here.
+* `src/lib/persistence/` — Markdown + JSONL writers; abstracted behind a small interface to allow SQLite later.
 
 ## Compose profiles
 
@@ -78,6 +75,7 @@ sofos-agent/
 ```
 OLLAMA_HOST=http://ollama:11434
 OLLAMA_MODEL=mistral
+MCP_PROXY_API_KEY=''
 LOG_DIR=/data/logs
 AGENT_PROFILE=monolith        # or: split
 PORT=5173
