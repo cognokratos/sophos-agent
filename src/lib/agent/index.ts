@@ -1,49 +1,63 @@
 import { ChatOllama } from '@langchain/ollama';
-import { BaseMessage, HumanMessage } from '@langchain/core/messages';
-import { StateGraph, END } from '@langchain/langgraph';
+import { AIMessage, HumanMessage } from '@langchain/core/messages';
+import type { BaseMessage } from '@langchain/core/messages';
+import { StateGraph, START, END } from '@langchain/langgraph';
+import { MessagesZodMeta } from "@langchain/langgraph";
+import { registry } from "@langchain/langgraph/zod";
+import * as z from "zod";
+
+const MessagesState = z.object({
+	messages: z
+		.array(z.custom<BaseMessage>())
+		.register(registry, MessagesZodMeta),
+	modelCalls: z.number().optional(),
+});
 
 const model = new ChatOllama({ model: 'mistral' });
 
-interface AgentState {
-	messages: BaseMessage[];
-}
-
-export async function callModel(state: AgentState, model: ChatOllama) {
+export async function callModel(state: z.infer<typeof MessagesState>, model: ChatOllama) {
+	const { messages } = state;
 	try {
-		const { messages } = state;
 		const response = await model.invoke(messages);
-		return { messages: [response] };
-	} catch (error: any) {
-		if (error.message.includes('model not found')) {
+		return {
+			messages: [response],
+			modelCalls: (state.modelCalls ?? 0) + 1,
+		};
+	} catch (error: unknown) {
+		if (error instanceof Error && error.message.includes('model not found')) {
 			throw new Error('MODEL_UNAVAILABLE');
 		}
 		throw error;
 	}
 }
 
-const workflow = new StateGraph<AgentState>({
-	channels: {
-		messages: {
-			value: (x: BaseMessage[], y: BaseMessage[]) => x.concat(y),
-			default: () => []
-		}
-	}
-});
+async function shouldContinue(state: z.infer<typeof MessagesState>) {
+	const lastMessage = state.messages.at(-1);
+	if (lastMessage == null || !AIMessage.isInstance(lastMessage)) return END;
 
-workflow.addNode('agent', (state) => callModel(state, model));
-workflow.setEntryPoint('agent');
-workflow.addConditionalEdges('agent', (state: AgentState) => {
+	// If the LLM makes a tool call, then perform an action
+	if (lastMessage.tool_calls?.length) {
+		return "toolNode";
+	}
+
+	// Otherwise, we stop (reply to the user)
 	return END;
-});
+}
+
+const workflow = new StateGraph(MessagesState)
+	.addNode('agent', (state) => callModel(state, model))
+	.addEdge(START, 'agent')
+	.addConditionalEdges('agent', shouldContinue)
+	.addEdge('agent', END);
 
 const graph = workflow.compile();
 
 export async function* runAgent(message: string) {
 	const stream = await graph.stream({ messages: [new HumanMessage(message)] });
-
 	for await (const output of stream) {
-		for (const message of output.agent.messages) {
-			yield message.content;
+		if (!output.agent) continue;
+		for (const msg of output.agent.messages) {
+			yield msg.content as string;
 		}
 	}
 }

@@ -32,4 +32,3 @@
   - [10) Risks & Mitigations (excerpt)](./10-risks-mitigations-excerpt.md)
   - [11) Roadmap (from PRD)](./11-roadmap-from-prd.md)
   - [12) Ownership & Artifacts](./12-ownership-artifacts.md)
-    - [Appendix — Error Envelope (authoritative)](./12-ownership-artifacts.md#appendix-error-envelope-authoritative)

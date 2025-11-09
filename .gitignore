@@ -3,6 +3,8 @@ data
 test-results
 node_modules
 
+.idea
+
 # Output
 .output
 .vercel

@@ -10,7 +10,8 @@
 
 ## 3.2 Public HTTP API (thin surface)
 
-* **POST `/api/chat`** — submit a turn; **SSE** stream events: `token`, `trace`, `tool`, `done`.
+* **POST `/api/chat`** — submit a turn.
+* **GET `/api/chat?sessionId=...`** — fetch a chat session. **SSE** stream events: `token`, `trace`, `tool`, `done`.
 * **GET `/api/models`** — list available Ollama models.
 * **GET `/api/logs/:sessionId`** — fetch Markdown transcript + trace refs.
   Keep endpoints minimal; move complexity into the agent engine for teachability.
@@ -32,11 +33,9 @@ export interface ChatRequest {
 export interface TraceNote { node:string; event:string; data?:Record<string,unknown>; }
 ```
 
-Shared in `packages/shared/` to keep FE/BE consistent.
-
 ## 3.4 Streaming Protocol
 
-**SSE** for simplicity; UI auto-downgrades to non-stream JSON if SSE fails (proxy/OS quirks). WebSocket is a Phase-2 option.
+**SSE** for simplicity; UI auto-downgrades to non-stream JSON if SSE fails (proxy/OS quirks).
 
 ## 3.5 Unified Error Envelope
 

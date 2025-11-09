@@ -1,12 +1,12 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import type { ApiError } from '../lib/error';
+	import type { ApiError } from '$lib/error';
 
 	let messages = $state<{ role: 'user' | 'assistant'; content: string }[]>([]);
 	let input = $state('');
 	let error = $state<ApiError | null>(null);
 
-	async function handleSubmit() {
+	async function handleSubmit(event: Event) {
+		event.preventDefault();
 		const userMessage = input;
 		if (!userMessage) return;
 
@@ -69,7 +69,7 @@
 			</div>
 		{/if}
 		<div class="space-y-4">
-			{#each messages as message}
+			{#each messages as message, i (`message_${i}`)}
 				<div class={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
 					<div
 						class={`max-w-lg rounded-lg px-4 py-2 ${
@@ -84,7 +84,7 @@
 	</main>
 
 	<footer class="bg-gray-800 p-4">
-		<form on:submit|preventDefault={handleSubmit} class="flex items-center">
+		<form onsubmit={handleSubmit} class="flex items-center">
 			<input
 				bind:value={input}
 				type="text"

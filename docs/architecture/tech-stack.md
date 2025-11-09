@@ -6,7 +6,7 @@ Local-first, teaching-focused stack with transparent reasoning, one-command Dock
 
 ## Frontend
 
-* **Framework:** SvelteKit (Node 20), SSR + endpoints
+* **Framework:** SvelteKit (Node 24), SSR + endpoints
 * **Styling:** Tailwind CSS
 * **Streaming:** Server-Sent Events (SSE) from `/api/chat`; JSON fallback
 * **State:** Lightweight store per session; no heavy client state libs
@@ -15,7 +15,7 @@ Local-first, teaching-focused stack with transparent reasoning, one-command Dock
 
 * **Engine:** LangGraph.js (TypeScript)
 * **Pattern:** Node-based graph; policies for tool-calling; emits `TraceNote` events
-* **Contracts:** `packages/shared/chat.ts` & `error.ts`
+* **Contracts:** `src/lib/chat.ts` & `error.ts`
 
 ## LLM Runtime
 
