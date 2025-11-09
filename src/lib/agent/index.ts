@@ -6,9 +6,11 @@ import { MessagesZodMeta } from "@langchain/langgraph";
 import { registry } from "@langchain/langgraph/zod";
 import * as z from "zod";
 
+
 const MessagesState = z.object({
 	messages: z
 		.array(z.custom<BaseMessage>())
+		// @ts-expect-error see LangGraph docs
 		.register(registry, MessagesZodMeta),
 	modelCalls: z.number().optional(),
 });
@@ -53,10 +55,14 @@ const workflow = new StateGraph(MessagesState)
 const graph = workflow.compile();
 
 export async function* runAgent(message: string) {
+	console.log("# Run Agent with message:")
+	console.log("```\n", message, "\n```")
 	const stream = await graph.stream({ messages: [new HumanMessage(message)] });
 	for await (const output of stream) {
 		if (!output.agent) continue;
 		for (const msg of output.agent.messages) {
+			console.log("## Agent message:")
+			console.log("```\n", msg.content, "\n```")
 			yield msg.content as string;
 		}
 	}
