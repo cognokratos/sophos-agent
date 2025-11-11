@@ -71,7 +71,7 @@ describe('Persistence Module', () => {
 		const filePath = join(TEST_LOG_DIR, sessionId, 'trace.jsonl');
 		const fileContent = await readFile(filePath, 'utf-8');
 		const lines = fileContent.trim().split('\n');
-		
+
 		expect(lines.length).toBe(2);
 
 		const parsed1 = JSON.parse(lines[0]);

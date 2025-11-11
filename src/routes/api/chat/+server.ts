@@ -20,14 +20,18 @@ interface Session {
 }
 
 const sessions = new Map<string, Session>();
-const newId = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+const newId = (prefix: string) =>
+	`${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
 export const POST: RequestHandler = async ({ request }) => {
 	const body: ChatRequest = await request.json();
 	const { message, conv: convId } = body;
 
 	if (!message || message.trim() === '') {
-		return json({ error: { code: 'BAD_REQUEST', message: 'Message is required' } }, { status: 400 });
+		return json(
+			{ error: { code: 'BAD_REQUEST', message: 'Message is required' } },
+			{ status: 400 }
+		);
 	}
 
 	const conv = convId || newId('conv');
@@ -73,7 +77,7 @@ async function getNextTurn(sessionId: string): Promise<number> {
 		const sessionDir = join(LOG_DIR, sessionId);
 		const files = await readdir(sessionDir);
 		return files.filter((f) => f.endsWith('.md')).length + 1;
-	} catch (e) {
+	} catch {
 		return 1; // Directory likely doesn't exist yet
 	}
 }
@@ -96,7 +100,7 @@ async function startAgent(
 			const id = String(++sessionObj.tokenIndex!);
 
 			switch (event.type) {
-				case 'token':
+				case 'token': {
 					assistantContent += event.data;
 					const tokenEventStr = `id: ${id}\nevent: token\ndata: ${JSON.stringify(event.data)}\n\n`;
 					sessionObj.events.push(tokenEventStr);
@@ -108,8 +112,8 @@ async function startAgent(
 						}
 					}
 					break;
-
-				case 'trace':
+				}
+				case 'trace': {
 					await writeTrace(conv, event.data);
 					const traceEventStr = `id: ${id}\nevent: trace\ndata: ${JSON.stringify(event.data)}\n\n`;
 					sessionObj.events.push(traceEventStr);
@@ -121,8 +125,9 @@ async function startAgent(
 						}
 					}
 					break;
+				}
 
-				case 'end':
+				case 'end': {
 					sessionObj.status = 'done';
 					assistantMessage.content = assistantContent;
 					const nextTurn = await getNextTurn(conv);
@@ -138,6 +143,7 @@ async function startAgent(
 						}
 					}
 					break;
+				}
 			}
 		}
 	} catch (e: unknown) {
@@ -247,5 +253,3 @@ export const GET: RequestHandler = ({ url, request }) => {
 		}
 	});
 };
-
-

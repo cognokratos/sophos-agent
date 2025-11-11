@@ -45,7 +45,7 @@ test.describe('Story 1.3: Reasoning Trace & Persistence', () => {
 		conversationId = await page.evaluate(() => localStorage.getItem('chat:conv'));
 		expect(conversationId).not.toBeNull();
 
-		const sessionDir = join(LOG_DIR, conversationId!); 
+		const sessionDir = join(LOG_DIR, conversationId!);
 		const files = await readdir(sessionDir);
 
 		// Check for user message, assistant message, and trace log
