@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import { debounce, safeJsonParse, trimMessages } from '$lib/chat-utils';
+	import type { TraceNote } from '$lib/chat';
 
 	// --- Types ---
 	type Msg = {
@@ -11,6 +12,7 @@
 
 	// --- State ---
 	let messages = $state<Msg[]>([]);
+	let traceNotes = $state<TraceNote[]>([]);
 	let input = $state('');
 	let error = $state<{ code: string; message: string } | null>(null);
 	let conv = $state<string | null>(null);
@@ -32,7 +34,11 @@
 
 	function persistState() {
 		if (!browser) return;
-		console.log('persistState: Saving to localStorage', { conv, session, messagesCount: messages.length });
+		console.log('persistState: Saving to localStorage', {
+			conv,
+			session,
+			messagesCount: messages.length
+		});
 		const trimmed = trimMessages(messages, 50);
 		localStorage.setItem(CHAT_MESSAGES_KEY, JSON.stringify(trimmed));
 		if (conv) localStorage.setItem(CHAT_CONV_KEY, conv);
@@ -49,7 +55,11 @@
 		messages = safeJsonParse<Msg[]>(localStorage.getItem(CHAT_MESSAGES_KEY), []);
 		conv = localStorage.getItem(CHAT_CONV_KEY);
 		session = localStorage.getItem(CHAT_SESSION_KEY);
-		console.log('loadFromStorage: Loaded state:', { messagesCount: messages.length, conv, session });
+		console.log('loadFromStorage: Loaded state:', {
+			messagesCount: messages.length,
+			conv,
+			session
+		});
 	}
 
 	// --- Effects ---
@@ -87,7 +97,7 @@
 	// --- SSE Handling ---
 	function appendToken(token: string) {
 		const last = messages.at(-1);
-		console.log("append token:", token);
+		console.log('append token:', token);
 		if (last?.role === 'assistant') {
 			last.content += token;
 		}
@@ -132,9 +142,18 @@
 			isSseStarting = false;
 		};
 
-		eventSource.addEventListener('token', e => {
-			console.log('SSE event: token', (e as MessageEvent).lastEventId, e.data);
-			appendToken(e.data);
+		eventSource.addEventListener('token', (e) => {
+			const data = safeJsonParse(e.data, null);
+			if (data) {
+				appendToken(data);
+			}
+		});
+
+		eventSource.addEventListener('trace', (e) => {
+			const traceData = safeJsonParse<TraceNote | null>(e.data, null);
+			if (traceData) {
+				traceNotes.push(traceData);
+			}
 		});
 
 		eventSource.onmessage = (e) => {
@@ -142,12 +161,12 @@
 			appendToken(e.data); // Fallback
 		};
 
-		eventSource.addEventListener('end', e => {
+		eventSource.addEventListener('end', (e) => {
 			console.log('SSE event: end. Finalizing stream.', e.lastEventId);
 			finalizeStream();
 		});
 
-		eventSource.onerror = e => {
+		eventSource.onerror = (e) => {
 			console.error('SSE event: generic error', e);
 			if (eventSource?.readyState === EventSource.CONNECTING) {
 				console.warn('SSE: Browser is attempting to reconnect, ignoring transient error.');
@@ -174,6 +193,7 @@
 			return;
 		}
 
+		traceNotes = []; // Clear previous traces
 		const userMessageText = input.trim();
 		const originalInput = input;
 		input = '';
@@ -201,7 +221,9 @@
 			if (response.status === 409) {
 				const data = await response.json();
 				if (data.session) {
-					console.log(`handleSubmit: Got 409, session ${data.session} already in progress. Resuming.`);
+					console.log(
+						`handleSubmit: Got 409, session ${data.session} already in progress. Resuming.`
+					);
 					session = data.session;
 					resumeSession(data.session);
 					return;
@@ -255,16 +277,37 @@
 			{#each messages as message (message.id)}
 				<div class={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
 					<div
-						class={`max-w-5/6 w-fit rounded-lg px-4 py-2 ${
+						class={`w-fit max-w-5/6 rounded-lg px-4 py-2 ${
 							message.role === 'user' ? 'bg-blue-600 text-right' : 'bg-gray-700'
 						}`}
 					>
-						<pre class="whitespace-pre-wrap font-sans">{message.content.replaceAll('<br>', '\n')}</pre>
+						<pre class="font-sans whitespace-pre-wrap">{message.content.replaceAll(
+								'<br>',
+								'\n'
+							)}</pre>
 					</div>
 				</div>
 			{/each}
 		</div>
 	</main>
+
+	{#if traceNotes.length > 0}
+		<div class="border-t border-gray-700 bg-gray-800 p-4">
+			<details>
+				<summary class="cursor-pointer font-bold">Reasoning Trace</summary>
+				<div class="mt-2 space-y-1 text-sm text-gray-400">
+					{#each traceNotes as note}
+						<div>
+							<span class="rounded bg-gray-700 px-1 py-0.5 font-mono text-xs"
+								>{note.event.toUpperCase()}</span
+							>
+							<span class="ml-2 font-semibold">{note.node}</span>
+						</div>
+					{/each}
+				</div>
+			</details>
+		</div>
+	{/if}
 
 	<footer class="bg-gray-800 p-4">
 		<form onsubmit={handleSubmit} class="flex items-center">
