@@ -9,9 +9,9 @@
 
 ```mermaid
 flowchart LR
-  U[Student / Educator] --> FE[SvelteKit UI<br/>/api/chat (SSE)]
+  U[Student / Educator] --> FE["SvelteKit UI<br/>/api/chat (SSE)"]
   FE --> LG[LangGraph.js Engine]
-  LG --> OL[Ollama (Mistral)]
+  LG --> OL["Ollama (Mistral)"]
   LG --> MCP[MCP Servers: Memory, Fetch]
   LG --> LOG[Markdown + trace.jsonl]
 ```

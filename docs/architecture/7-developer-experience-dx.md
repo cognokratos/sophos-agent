@@ -3,11 +3,11 @@
 ## 7.1 Monorepo Layout
 
 ```
-src/ (SvelteKit + Agent)
+apps/web (SvelteKit + Agent)
 infra/ (compose, Dockerfiles, profiles) • data/logs/ • scripts/ • docs/
 ```
 
-**Why:** shared types, simple onboarding; aligns with Team Fullstack workflow & templates.
+**Why:** simple onboarding; aligns with Team Fullstack workflow & templates.
 
 ## 7.2 One-Command Setup
 

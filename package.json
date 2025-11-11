@@ -45,5 +45,11 @@
 		"vite-plugin-devtools-json": "^1.0.0",
 		"vitest": "^3.2.4",
 		"vitest-browser-svelte": "^1.1.0"
+	},
+	"dependencies": {
+		"@langchain/core": "^1.0.1",
+		"@langchain/langgraph": "^1.0.1",
+		"@langchain/ollama": "^1.0.0",
+		"zod": "^4.1.12"
 	}
 }
