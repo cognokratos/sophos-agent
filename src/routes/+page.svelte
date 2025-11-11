@@ -97,6 +97,7 @@
 		console.log('finalizeStream: Closing EventSource, resetting streaming state.');
 		eventSource?.close();
 		eventSource = null;
+		session = null;
 		isStreaming = false;
 		isSseStarting = false;
 		persistState(); // Ensure final state is saved
@@ -104,8 +105,8 @@
 
 	function stopStream() {
 		console.log('stopStream: User initiated stop.');
+		// User-initiated stop clears the session
 		finalizeStream();
-		session = null; // User-initiated stop clears the session
 	}
 
 	function startSse(sessionId: string) {
@@ -113,15 +114,15 @@
 			console.warn('startSse: SSE stream already starting or active. Aborting new start.');
 			return;
 		}
-		isSseStarting = true;
-		console.log(`startSse: Starting SSE for session: ${sessionId}`);
 
+		isSseStarting = true;
+		console.log(`startSse: Starting SSE for session ${sessionId}`);
 		eventSource = new EventSource(`/api/chat?session=${encodeURIComponent(sessionId)}`);
 		isStreaming = true;
 		error = null;
 
 		const lastMessage = messages.at(-1);
-		if (lastMessage?.role !== 'assistant') {
+		if (!lastMessage || lastMessage.role !== 'assistant') {
 			console.log('startSse: Adding new assistant message placeholder.');
 			messages.push({ id: crypto.randomUUID(), role: 'assistant', content: '' });
 		}
@@ -131,39 +132,22 @@
 			isSseStarting = false;
 		};
 
-		eventSource.addEventListener('token', (e) => {
-			console.log('SSE event: token', e.data);
+		eventSource.addEventListener('token', e => {
+			console.log('SSE event: token', (e as MessageEvent).lastEventId, e.data);
 			appendToken(e.data);
 		});
+
 		eventSource.onmessage = (e) => {
 			console.log('SSE event: message (fallback)', e.data);
 			appendToken(e.data); // Fallback
 		};
 
-		eventSource.addEventListener('end', () => {
-			console.log('SSE event: end. Finalizing stream.');
+		eventSource.addEventListener('end', e => {
+			console.log('SSE event: end. Finalizing stream.', e.lastEventId);
 			finalizeStream();
-			session = null;
 		});
 
-		eventSource.addEventListener('server-error', (e) => {
-			console.error('SSE event: server-error', e);
-			try {
-				const parsed = JSON.parse(e.data);
-				error = { code: parsed.code || 'SERVER_ERROR', message: parsed.message || 'Server error' };
-			} catch {
-				error = { code: 'SSE_ERROR', message: 'Unknown server error' };
-			}
-			const last = messages.at(-1);
-			if (last?.role === 'assistant' && last.content === '') {
-				console.log('SSE event: server-error. Removing empty assistant message.');
-				messages.pop();
-			}
-			finalizeStream();
-			session = null;
-		});
-
-		eventSource.onerror = (e) => {
+		eventSource.onerror = e => {
 			console.error('SSE event: generic error', e);
 			if (eventSource?.readyState === EventSource.CONNECTING) {
 				console.warn('SSE: Browser is attempting to reconnect, ignoring transient error.');
@@ -171,7 +155,6 @@
 			}
 			error = { code: 'SSE_ERROR', message: 'Connection failed.' };
 			finalizeStream();
-			session = null;
 		};
 
 		eventSource.addEventListener('ping', () => {
@@ -181,7 +164,7 @@
 
 	function resumeSession(sessionId: string) {
 		console.log(`resumeSession: Attempting to resume session: ${sessionId}`);
-		startSse(sessionId);
+		startSse(sessionId); // Last-Event-ID handled by the browser automatically
 	}
 
 	async function handleSubmit(event: Event) {
@@ -272,8 +255,8 @@
 			{#each messages as message (message.id)}
 				<div class={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
 					<div
-						class={`max-w-lg rounded-lg px-4 py-2 ${
-							message.role === 'user' ? 'bg-blue-600' : 'bg-gray-700'
+						class={`max-w-5/6 w-fit rounded-lg px-4 py-2 ${
+							message.role === 'user' ? 'bg-blue-600 text-right' : 'bg-gray-700'
 						}`}
 					>
 						<pre class="whitespace-pre-wrap font-sans">{message.content.replaceAll('<br>', '\n')}</pre>

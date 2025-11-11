@@ -3,16 +3,26 @@ import { json } from '@sveltejs/kit';
 import type { ChatRequest } from '$lib/chat';
 import { runAgent } from '$lib/agent';
 
-// In-memory state
-const conversations = new Map<string, Array<{ role: 'user' | 'assistant'; content: string; ts: number }>>();
-const sessions = new Map<string, {
+interface Conversation {
+	role: 'user' | 'assistant';
+	content: string;
+	ts: number;
+}
+interface Session {
 	conv: string;
 	status: 'pending' | 'streaming' | 'done' | 'error';
 	buffer: string;
 	createdAt: number;
 	updatedAt: number;
 	error?: { code: string; message: string };
-}>();
+	subscribers: Set<(ev: string, data: unknown, id?: string) => void>;
+	events: string[];
+	tokenIndex?: number;
+}
+
+// In-memory state
+const conversations = new Map<string, Array<Conversation>>();
+const sessions = new Map<string, Session>();
 
 const newId = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
@@ -63,53 +73,101 @@ export const POST: RequestHandler = async ({ request }) => {
 	conversations.get(conv)!.push({ role: 'user', content: message, ts: Date.now() });
 
 	const session = newId('sess');
-	sessions.set(session, {
+	const sessionObj: Session = {
 		conv,
 		status: 'pending',
 		buffer: '',
 		createdAt: Date.now(),
-		updatedAt: Date.now()
-	});
-	console.log(`POST /api/chat - Created new session: ${session} for conv: ${conv}`);
+		updatedAt: Date.now(),
+		subscribers: new Set(),
+		events: [],
+		tokenIndex: 0,
+	};
+	sessions.set(session, sessionObj);
+
+	// Start the agent in the background (fire-and-forget)
+	startAgent(conv, session, sessionObj);
 
 	return json({ conv, session });
 };
+
+async function startAgent(conv: string, session: string, sessionObj: Session) {
+	try {
+		const convHistory = conversations.get(conv)!;
+		let assistantMessage = convHistory.find(m => m.role === 'assistant' && m.content === '');
+		if (!assistantMessage) {
+			assistantMessage = { role: 'assistant', content: '', ts: Date.now() };
+			convHistory.push(assistantMessage);
+		}
+
+		sessionObj.status = 'streaming';
+		sessionObj.updatedAt = Date.now();
+
+		for await (const token of runAgentAdapter(convHistory)) {
+			sessionObj.buffer += token;
+			assistantMessage.content += token;
+			sessionObj.updatedAt = Date.now();
+
+			// Construct SSE payload
+			const id = String(++sessionObj.tokenIndex!);
+			const eventStr = `id: ${id}\nevent: token\ndata: ${token}\n\n`;
+			sessionObj.events.push(eventStr);
+			if (sessionObj.events.length > 5000) sessionObj.events.shift();
+
+
+			// Fan out live
+			for (const send of sessionObj.subscribers) {
+				try { send('token', token, id); } catch { /* empty */ }
+			}
+		}
+
+		sessionObj.status = 'done';
+		sessionObj.updatedAt = Date.now();
+		const endId = String(++sessionObj.tokenIndex!);
+		const endEvent = `id: ${endId}\nevent: end\ndata: ${JSON.stringify({ conv, session })}\n\n`;
+		sessionObj.events.push(endEvent);
+		for (const send of sessionObj.subscribers) {
+			try { send('end', { conv, session }, endId); } catch { /* empty */ }
+		}
+	} catch (e: unknown) {
+		console.error(`POST /api/chat - Agent failure for session: ${session}`, e);
+		const error = { code: 'AGENT_FAILURE', message: e instanceof Error ? e.message : 'Agent failed' };
+		sessionObj.status = 'error';
+		sessionObj.error = error;
+		sessionObj.updatedAt = Date.now();
+		const errId = String(++sessionObj.tokenIndex!);
+		const errEvent = `id: ${errId}\nevent: server-error\ndata: ${JSON.stringify(error)}\n\n`;
+		sessionObj.events.push(errEvent);
+		for (const send of sessionObj.subscribers) {
+			try { send('server-error', error); } catch { /* empty */ }
+		}
+	}
+}
 
 export const GET: RequestHandler = ({ url, request }) => {
 	const sessionId = url.searchParams.get('session');
 	console.log(`GET /api/chat?session=${sessionId}`);
 
-	if (!sessionId) {
-		console.error('GET /api/chat - 400: Session ID is required');
-		return new Response('event: error\ndata: {"code":"BAD_REQUEST","message":"Session ID is required"}\n\n', {
-			status: 400,
-			headers: { 'Content-Type': 'text/event-stream' }
-		});
+	if (!sessionId || !sessions.has(sessionId)) {
+		return new Response('event: error\ndata: {"code":"NOT_FOUND"}\n\n', { headers: { 'Content-Type': 'text/event-stream' } });
 	}
-
 	const session = sessions.get(sessionId);
-
 	if (!session) {
-		console.error(`GET /api/chat - 404: Session not found: ${sessionId}`);
-		return new Response('event: error\ndata: {"code":"NOT_FOUND","message":"Session not found"}\n\n', {
-			status: 404,
-			headers: { 'Content-Type': 'text/event-stream' }
-		});
+		return new Response('event: error\ndata: {"code":"NOT_FOUND"}\n\n', { headers: { 'Content-Type': 'text/event-stream' } });
 	}
-
 	console.log(`GET /api/chat - Found session: ${sessionId}, status: ${session.status}`);
 
 	const stream = new ReadableStream({
-		async start(controller) {
+		start(controller) {
 			const encoder = new TextEncoder();
-			const send = (event: string, data: unknown) => {
-				let payload = `event: ${event}\n`;
-				if (typeof data === 'string') {
-					payload += `data: ${data}\n\n`;
-				} else {
-					payload += `data: ${JSON.stringify(data)}\n\n`;
-				}
-				controller.enqueue(encoder.encode(payload));
+			let closed = false;
+			const send = (event: string, data: unknown, id?: string) => {
+				if (closed) return;
+				let payload = '';
+				if (id) payload += `id: ${id}\n`;
+				payload += `event: ${event}\n`;
+				payload += `data: ${typeof data === 'string' ? data : JSON.stringify(data)}\n\n`;
+				try { controller.enqueue(encoder.encode(payload)); } catch { closed = true; }
 			};
 
 			const pingInterval = setInterval(() => {
@@ -120,83 +178,37 @@ export const GET: RequestHandler = ({ url, request }) => {
 			request.signal.addEventListener('abort', () => {
 				console.log(`GET /api/chat - Client disconnected from session: ${sessionId}`);
 				clearInterval(pingInterval);
-				if (session.status === 'streaming') {
-					// In a real scenario, you'd signal the agent to stop.
-					// For now, we just mark it as done to prevent re-attachment to a broken stream.
-					session.status = 'done';
-					session.updatedAt = Date.now();
-					console.log(`GET /api/chat - Marked session as 'done' on disconnect: ${sessionId}`);
-				}
-				controller.close();
+				session.subscribers.delete(sink);
+				closed = true;
 			});
 
-			if (session.status === 'error') {
-				console.error(`GET /api/chat - Session has error: ${sessionId}`, session.error);
-				send('error', session.error);
-				clearInterval(pingInterval);
-				controller.close();
-				return;
+			const lastEventId = request.headers.get('last-event-id'); // 👈 native SSE resume header
+
+			// Determine resume index
+			let lastIndex = 0;
+			if (lastEventId) {
+				const parsed = Number(lastEventId);
+				if (!Number.isNaN(parsed)) lastIndex = parsed;
+				console.log(`GET /api/chat - Resuming after id ${lastIndex} for session ${sessionId}`);
 			}
 
-			if (session.status === 'done') {
-				console.log(`GET /api/chat - Replaying 'done' session: ${sessionId}`);
-				// Replay buffer
-				const chunks = session.buffer.match(/.{1,20}/g) || [];
-				for (const chunk of chunks) {
-					send('token', chunk);
-				}
-				send('end', { conv: session.conv, session: sessionId });
-				clearInterval(pingInterval);
-				controller.close();
-				return;
+			// Replay all events with ID greater than lastEventId
+			for (const eventStr of session.events) {
+				// Extract numeric id (we encoded "id: X" on first line)
+				const match = eventStr.match(/^id:\s*(\d+)/m);
+				const idNum = match ? Number(match[1]) : 0;
+				if (idNum > lastIndex) try { controller.enqueue(encoder.encode(eventStr)); } catch { /* ignore */ }
 			}
 
-			// For pending or streaming, replay buffer first
-			if (session.buffer) {
-				console.log(`GET /api/chat - Replaying buffer for session: ${sessionId}`);
-				const chunks = session.buffer.match(/.{1,20}/g) || [];
-				for (const chunk of chunks) {
-					send('token', chunk);
-				}
-			}
+			const sink = (event: string, data: unknown, id?: string) => send(event, data, id);
 
-			if (session.status === 'pending') {
-				console.log(`GET /api/chat - Starting 'pending' session: ${sessionId}`);
-				session.status = 'streaming';
-				session.updatedAt = Date.now();
-
-				try {
-					const convHistory = conversations.get(session.conv)!;
-					let assistantMessage = convHistory.find(m => m.role === 'assistant' && m.content === '');
-					if (!assistantMessage) {
-						assistantMessage = { role: 'assistant', content: '', ts: Date.now() };
-						convHistory.push(assistantMessage);
-					}
-
-					console.log(`GET /api/chat - Running agent for session: ${sessionId}`);
-					for await (const token of runAgentAdapter(convHistory)) {
-						send('token', token);
-						session.buffer += token;
-						assistantMessage.content += token;
-						session.updatedAt = Date.now();
-					}
-
-					session.status = 'done';
-					session.updatedAt = Date.now();
-					console.log(`GET /api/chat - Agent finished, session 'done': ${sessionId}`);
-					send('end', { conv: session.conv, session: sessionId });
-
-				} catch (e: unknown) {
-					console.error(`GET /api/chat - Agent run failed for session: ${sessionId}`, e);
-					const error = { code: 'AGENT_FAILURE', message: e instanceof Error ? e.message : 'Agent failed' };
-					session.status = 'error';
-					session.error = error;
-					session.updatedAt = Date.now();
-					send('error', error);
-				} finally {
-					clearInterval(pingInterval);
-					controller.close();
-				}
+			// Subscribe for future live tokens
+			if (session.status === 'streaming' || session.status === 'pending') {
+				session.subscribers.add(sink);
+			} else if (session.status === 'done') {
+				send('end', { conv: session.conv, session: sessionId }, String(session.tokenIndex ?? 0));
+			} else if (session.status === 'error') {
+				send('server-error', session.error || { code: 'UNKNOWN', message: 'Unknown error' }, String(session.tokenIndex ?? 0));
 			}
 		}
 	});
@@ -209,3 +221,5 @@ export const GET: RequestHandler = ({ url, request }) => {
 		}
 	});
 };
+
+
