@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import { debounce, safeJsonParse, trimMessages } from '$lib/chat-utils';
+	import type { TraceNote } from '$lib/chat';
 
 	// --- Types ---
 	type Msg = {
@@ -11,6 +12,7 @@
 
 	// --- State ---
 	let messages = $state<Msg[]>([]);
+	let traceNotes = $state<TraceNote[]>([]);
 	let input = $state('');
 	let error = $state<{ code: string; message: string } | null>(null);
 	let conv = $state<string | null>(null);
@@ -133,8 +135,17 @@
 		};
 
 		eventSource.addEventListener('token', e => {
-			console.log('SSE event: token', (e as MessageEvent).lastEventId, e.data);
-			appendToken(e.data);
+			const data = safeJsonParse(e.data, null);
+			if (data) {
+				appendToken(data);
+			}
+		});
+
+		eventSource.addEventListener('trace', (e) => {
+			const traceData = safeJsonParse<TraceNote>(e.data, null);
+			if (traceData) {
+				traceNotes.push(traceData);
+			}
 		});
 
 		eventSource.onmessage = (e) => {
@@ -174,6 +185,7 @@
 			return;
 		}
 
+		traceNotes = []; // Clear previous traces
 		const userMessageText = input.trim();
 		const originalInput = input;
 		input = '';
@@ -265,6 +277,22 @@
 			{/each}
 		</div>
 	</main>
+
+	{#if traceNotes.length > 0}
+		<div class="border-t border-gray-700 bg-gray-800 p-4">
+			<details>
+				<summary class="cursor-pointer font-bold">Reasoning Trace</summary>
+				<div class="mt-2 space-y-1 text-sm text-gray-400">
+					{#each traceNotes as note}
+						<div>
+							<span class="font-mono rounded bg-gray-700 px-1 py-0.5 text-xs">{note.event.toUpperCase()}</span>
+							<span class="ml-2 font-semibold">{note.node}</span>
+						</div>
+					{/each}
+				</div>
+			</details>
+		</div>
+	{/if}
 
 	<footer class="bg-gray-800 p-4">
 		<form onsubmit={handleSubmit} class="flex items-center">
