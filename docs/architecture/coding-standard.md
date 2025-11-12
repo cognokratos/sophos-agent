@@ -62,17 +62,9 @@
 
 ## MCP Tool Adapters
 
-* Adapters must conform to a thin interface and surface safe errors:
-
-  ```ts
-  export interface McpTool<TArgs, TResult> {
-    name: string;
-    call(args: TArgs): Promise<TResult>;
-  }
-  export type MemoryWriteArgs = { key: string; value: string; meta?: Record<string, unknown> };
-  export type MemoryWriteResult = { ok: true };
-  ```
-* Wrap remote errors and map to `TOOL_FAILURE` with `{ tool: name, cause }` in `details`.
+*   The agent will consume MCP tools primarily through the `@langchain/mcp-adapters` library.
+*   Tools retrieved from `MultiServerMCPClient` will be adapted to the agent's internal tool representation as necessary.
+*   When adapting, ensure that the tool's functionality (name, description, schema, and call mechanism) is preserved and errors are mapped to `TOOL_FAILURE` with `{ tool: name, cause }` in `details`.
 
 ## Access & Security
 
