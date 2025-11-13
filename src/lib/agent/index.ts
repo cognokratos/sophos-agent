@@ -1,112 +1,78 @@
-import { ChatOllama } from '@langchain/ollama';
-import { AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
-import type { BaseMessage } from '@langchain/core/messages';
-import { StateGraph, START, END } from '@langchain/langgraph';
-import { MessagesZodMeta } from '@langchain/langgraph';
+import { ChatOllama, type ChatOllamaCallOptions } from '@langchain/ollama';
+import { AIMessageChunk, type BaseMessage } from '@langchain/core/messages';
+import { AIMessage, HumanMessage } from '@langchain/core/messages';
+import { END, MessagesZodMeta, START, StateGraph } from '@langchain/langgraph';
 import { registry } from '@langchain/langgraph/zod';
 import * as z from 'zod';
 import type { AgentEvent } from '$lib/chat';
 import { getMCPClientService } from './mcp/client';
+import type { BaseLanguageModelInput } from '@langchain/core/language_models/base';
+import { Runnable } from '@langchain/core/runnables';
+import { ToolNode } from '@langchain/langgraph/prebuilt';
 
-const MessagesState = z.object({
+const MessagesStateSchema = z.object({
 	messages: z
 		.array(z.custom<BaseMessage>())
 		// @ts-expect-error see LangGraph docs
 		.register(registry, MessagesZodMeta),
 	modelCalls: z.number().optional()
 });
+type MessagesState = z.infer<typeof MessagesStateSchema>;
+type OllamaAgent = Runnable<BaseLanguageModelInput, AIMessageChunk, ChatOllamaCallOptions>;
 
-const model = new ChatOllama({ model: 'mistral' });
-
-export async function callModel(state: z.infer<typeof MessagesState>, model: ChatOllama) {
-	const { messages } = state;
-	try {
-		const response = await model.invoke(messages);
-		return {
-			messages: [response],
-			modelCalls: (state.modelCalls ?? 0) + 1
-		};
-	} catch (error: unknown) {
-		if (error instanceof Error && error.message.includes('model not found')) {
-			throw new Error('MODEL_UNAVAILABLE');
-		}
-		throw error;
-	}
-}
-
-// Tool execution node
-async function toolNode(state: z.infer<typeof MessagesState>) {
-	const lastMessage = state.messages.at(-1);
-	if (!AIMessage.isInstance(lastMessage) || !lastMessage.tool_calls) {
-		return state;
-	}
-
-	// Get MCP client service to retrieve tools
-	const mcpClientService = getMCPClientService();
-
-	// Execute all tool calls in parallel
-	const toolMessages = await Promise.all(
-		lastMessage.tool_calls.map(async (toolCall) => {
-			try {
-				// Try to get the tool from MCP client
-				const tool = await mcpClientService.getToolByName(toolCall.name);
-
-				if (!tool) {
-					console.error(`Tool not found: ${toolCall.name}`);
-					return new ToolMessage({
-						content: `Error: Tool not found: ${toolCall.name}`,
-						tool_call_id: toolCall.id
-					});
-				}
-
-				// Execute the tool with the provided arguments
-				const result = await tool.invoke(toolCall.args);
-				return new ToolMessage({
-					content: typeof result === 'string' ? result : JSON.stringify(result),
-					tool_call_id: toolCall.id
-				});
-			} catch (error) {
-				console.error(`Error executing tool ${toolCall.name}:`, error);
-				return new ToolMessage({
-					content: `Error executing tool ${toolCall.name}: ${(error as Error).message}`,
-					tool_call_id: toolCall.id
-				});
+export function agentNode(agent: OllamaAgent) {
+	return async function (state: MessagesState) {
+		const { messages } = state;
+		try {
+			const response = await agent.invoke(messages);
+			return {
+				messages: [response],
+				modelCalls: (state.modelCalls ?? 0) + 1
+			};
+		} catch (error: unknown) {
+			if (error instanceof Error && error.message.includes('model not found')) {
+				throw new Error('MODEL_UNAVAILABLE');
 			}
-		})
-	);
-
-	return {
-		messages: toolMessages
+			throw error;
+		}
 	};
 }
 
-async function shouldContinue(state: z.infer<typeof MessagesState>) {
+async function shouldContinue(state: MessagesState) {
 	const lastMessage = state.messages.at(-1);
 	if (lastMessage == null || !AIMessage.isInstance(lastMessage)) return END;
 
 	if (lastMessage.tool_calls?.length) {
-		return 'toolNode';
+		return 'tools';
 	}
 
 	return END;
 }
 
-const workflow = new StateGraph(MessagesState)
-	.addNode('agent', (state) => callModel(state, model))
-	.addNode('toolNode', toolNode)
-	.addEdge(START, 'agent')
-	.addConditionalEdges('agent', shouldContinue)
-	.addEdge('toolNode', 'agent');
+async function initGraph() {
+	const model = new ChatOllama({ model: 'qwen3' });
 
-const graph = workflow.compile();
-
-export async function* runAgent(message: string): AsyncGenerator<AgentEvent> {
-	// Initialize MCP client service if not already done
-	const mcpClientService = getMCPClientService();
-	if (!mcpClientService.isInitialized()) {
-		await mcpClientService.initialize();
+	const client = getMCPClientService();
+	if (!client.isInitialized()) {
+		await client.initialize();
 	}
 
+	const tools = await client.getTools();
+	const agent = model.bindTools(tools);
+
+	const workflow = new StateGraph(MessagesStateSchema)
+		.addNode('agent', agentNode(agent))
+		.addNode('tools', new ToolNode(tools))
+		.addEdge(START, 'agent')
+		.addEdge('tools', 'agent')
+		.addConditionalEdges('agent', shouldContinue);
+
+	return workflow.compile();
+}
+
+const graph = await initGraph();
+
+export async function* runAgent(message: string): AsyncGenerator<AgentEvent> {
 	const stream = await graph.stream(
 		{ messages: [new HumanMessage(message)] },
 		{ streamMode: 'updates' }
@@ -125,8 +91,8 @@ export async function* runAgent(message: string): AsyncGenerator<AgentEvent> {
 			}
 		}
 
-		if (output.toolNode) {
-			yield { type: 'trace', data: { node: 'toolNode', event: 'tools_executed' } };
+		if (output.tools) {
+			yield { type: 'trace', data: { node: 'tools', event: 'tool' } };
 		}
 
 		yield { type: 'trace', data: { node: nodeName, event: 'leave' } };

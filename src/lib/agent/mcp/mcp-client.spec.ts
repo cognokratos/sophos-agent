@@ -8,9 +8,9 @@ vi.mock('@langchain/mcp-adapters', async () => {
 	return {
 		...actual,
 		MultiServerMCPClient: vi.fn().mockImplementation(() => ({
-			connect: vi.fn().mockResolvedValue(undefined),
-			disconnect: vi.fn().mockResolvedValue(undefined),
-			listTools: vi.fn().mockResolvedValue([])
+			initializeConnections: vi.fn().mockResolvedValue(undefined),
+			close: vi.fn().mockResolvedValue(undefined),
+			getTools: vi.fn().mockResolvedValue([])
 		}))
 	};
 });
@@ -47,18 +47,13 @@ describe('MCPClientService', () => {
 	describe('initialization', () => {
 		it('should successfully initialize with valid configuration', async () => {
 			// Mock configuration with a server
-			const mockConfig = [
-				{
-					id: 'test-server',
-					name: 'Test Server',
-					transports: [
-						{
-							type: 'stdio',
-							stdio: { command: 'echo', args: ['hello'] }
-						}
-					]
+			const mockConfig = {
+				'test-server': {
+					transport: 'stdio',
+					command: 'echo',
+					args: ['hello']
 				}
-			];
+			};
 			(loadMCPConfig as vi.Mock).mockReturnValue(mockConfig);
 
 			await expect(mcpClientService.initialize()).resolves.not.toThrow();
@@ -67,7 +62,7 @@ describe('MCPClientService', () => {
 
 		it('should handle case when no MCP servers are configured', async () => {
 			// Mock empty configuration
-			(loadMCPConfig as vi.Mock).mockReturnValue([]);
+			(loadMCPConfig as vi.Mock).mockReturnValue({});
 
 			await mcpClientService.initialize();
 			expect(mcpClientService.isInitialized()).toBe(true);
@@ -83,18 +78,13 @@ describe('MCPClientService', () => {
 		});
 
 		it('should not initialize twice', async () => {
-			const mockConfig = [
-				{
-					id: 'test-server',
-					name: 'Test Server',
-					transports: [
-						{
-							type: 'stdio',
-							stdio: { command: 'echo', args: ['hello'] }
-						}
-					]
+			const mockConfig = {
+				'test-server': {
+					transport: 'stdio',
+					command: 'echo',
+					args: ['hello']
 				}
-			];
+			};
 			(loadMCPConfig as vi.Mock).mockReturnValue(mockConfig);
 
 			await mcpClientService.initialize();
@@ -119,27 +109,22 @@ describe('MCPClientService', () => {
 				}
 			];
 
-			(loadMCPConfig as vi.Mock).mockReturnValue([
-				{
-					id: 'test-server',
-					name: 'Test Server',
-					transports: [
-						{
-							type: 'stdio',
-							stdio: { command: 'echo', args: ['hello'] }
-						}
-					]
+			(loadMCPConfig as vi.Mock).mockReturnValue({
+				'test-server': {
+					transport: 'stdio',
+					command: 'echo',
+					args: ['hello']
 				}
-			]);
+			});
 
 			await mcpClientService.initialize();
 
 			// Get the mocked client instance to set up our mock for listTools
-			const clientInstance = (
-				mcpClientService as { client: { listTools: () => Promise<unknown[]> } }
-			).client;
+			// @ts-expect-error only for testing
+			const clientInstance = mcpClientService.client;
 			if (clientInstance) {
-				vi.spyOn(clientInstance, 'listTools').mockResolvedValue(mockTools);
+				// @ts-expect-error only for testing
+				vi.spyOn(clientInstance, 'getTools').mockResolvedValue(mockTools);
 			}
 
 			const tools = await mcpClientService.getTools();
@@ -171,27 +156,22 @@ describe('MCPClientService', () => {
 				}
 			];
 
-			(loadMCPConfig as vi.Mock).mockReturnValue([
-				{
-					id: 'test-server',
-					name: 'Test Server',
-					transports: [
-						{
-							type: 'stdio',
-							stdio: { command: 'echo', args: ['hello'] }
-						}
-					]
+			(loadMCPConfig as vi.Mock).mockReturnValue({
+				'test-server': {
+					transport: 'stdio',
+					command: 'echo',
+					args: ['hello']
 				}
-			]);
+			});
 
 			await mcpClientService.initialize();
 
-			// Get the mocked client instance and mock listTools to return our tools
-			const clientInstance = (
-				mcpClientService as { client: { listTools: () => Promise<unknown[]> } }
-			).client;
+			// Get the mocked client instance to set up our mock for listTools
+			// @ts-expect-error only for testing
+			const clientInstance = mcpClientService.client;
 			if (clientInstance) {
-				vi.spyOn(clientInstance, 'listTools').mockResolvedValue(mockTools);
+				// @ts-expect-error only for testing
+				vi.spyOn(clientInstance, 'getTools').mockResolvedValue(mockTools);
 			}
 
 			const tool = await mcpClientService.getToolByName('test-tool-1');
@@ -209,27 +189,22 @@ describe('MCPClientService', () => {
 				}
 			];
 
-			(loadMCPConfig as vi.Mock).mockReturnValue([
-				{
-					id: 'test-server',
-					name: 'Test Server',
-					transports: [
-						{
-							type: 'stdio',
-							stdio: { command: 'echo', args: ['hello'] }
-						}
-					]
+			(loadMCPConfig as vi.Mock).mockReturnValue({
+				'test-server': {
+					transport: 'stdio',
+					command: 'echo',
+					args: ['hello']
 				}
-			]);
+			});
 
 			await mcpClientService.initialize();
 
-			// Get the mocked client instance and mock listTools to return our tools
-			const clientInstance = (
-				mcpClientService as { client: { listTools: () => Promise<unknown[]> } }
-			).client;
+			// Get the mocked client instance to set up our mock for listTools
+			// @ts-expect-error only for testing
+			const clientInstance = mcpClientService.client;
 			if (clientInstance) {
-				vi.spyOn(clientInstance, 'listTools').mockResolvedValue(mockTools);
+				// @ts-expect-error only for testing
+				vi.spyOn(clientInstance, 'getTools').mockResolvedValue(mockTools);
 			}
 
 			const tool = await mcpClientService.getToolByName('non-existent-tool');
@@ -246,18 +221,13 @@ describe('MCPClientService', () => {
 
 	describe('dispose', () => {
 		it('should disconnect and clean up resources', async () => {
-			(loadMCPConfig as vi.Mock).mockReturnValue([
-				{
-					id: 'test-server',
-					name: 'Test Server',
-					transports: [
-						{
-							type: 'stdio',
-							stdio: { command: 'echo', args: ['hello'] }
-						}
-					]
+			(loadMCPConfig as vi.Mock).mockReturnValue({
+				'test-server': {
+					transport: 'stdio',
+					command: 'echo',
+					args: ['hello']
 				}
-			]);
+			});
 
 			await mcpClientService.initialize();
 			expect(mcpClientService.isInitialized()).toBe(true);

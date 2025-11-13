@@ -1,6 +1,6 @@
-import { MultiServerMCPClient, type ClientConfig } from '@langchain/mcp-adapters';
-import type { Tool } from '@langchain/core/tools';
-import { loadMCPConfig, type MCPServerConfig } from './config';
+import { MultiServerMCPClient } from '@langchain/mcp-adapters';
+import type { DynamicStructuredTool } from '@langchain/core/tools';
+import { loadMCPConfig } from './config';
 
 /**
  * Wrapper for the MultiServerMCPClient that handles initialization and tool retrieval
@@ -22,52 +22,27 @@ export class MCPClientService {
 
 		try {
 			// Load configuration for MCP servers
-			const serverConfigs = loadMCPConfig();
+			const serverConfigs = await loadMCPConfig();
+			const toolNames = Object.keys(serverConfigs);
 
-			if (serverConfigs.length === 0) {
+			if (toolNames.length === 0) {
 				console.log('No MCP servers configured, skipping initialization');
 				this.initialized = true;
 				return;
 			}
 
-			// Convert our config format to the format expected by MultiServerMCPClient
-			const clientConfigs: ClientConfig[] = serverConfigs.map((config: MCPServerConfig) => {
-				const transports = config.transports.map((transport) => {
-					if (transport.type === 'stdio') {
-						if (!transport.stdio) {
-							throw new Error(`stdio transport configuration missing for server ${config.id}`);
-						}
-						return {
-							type: 'stdio' as const,
-							command: transport.stdio.command,
-							args: transport.stdio.args || []
-						};
-					} else if (transport.type === 'sse') {
-						if (!transport.sse) {
-							throw new Error(`sse transport configuration missing for server ${config.id}`);
-						}
-						return {
-							type: 'sse' as const,
-							url: transport.sse.url
-						};
-					}
-					throw new Error(`Unsupported transport type: ${transport.type}`);
-				});
-
-				return {
-					id: config.id,
-					name: config.name,
-					transports
-				};
+			// Initialize the MultiServerMCPClient
+			this.client = new MultiServerMCPClient({
+				mcpServers: serverConfigs
 			});
 
-			// Initialize the MultiServerMCPClient
-			this.client = new MultiServerMCPClient(clientConfigs);
-
 			// Connect to all configured servers
-			await this.client.connect();
+			await this.client.initializeConnections();
 
-			console.log(`MCPClientService initialized with ${serverConfigs.length} server(s)`);
+			console.log(`MCPClientService initialized with ${toolNames.length} server(s)`);
+			toolNames.forEach((toolName, i) => {
+				console.log(`- tool ${i}: ${toolName}`);
+			});
 			this.initialized = true;
 		} catch (error) {
 			console.error('Failed to initialize MCPClientService:', error);
@@ -85,15 +60,14 @@ export class MCPClientService {
 	/**
 	 * Retrieves all available tools from connected MCP servers
 	 */
-	async getTools(): Promise<Tool[]> {
+	async getTools(): Promise<DynamicStructuredTool[]> {
 		if (!this.initialized || !this.client) {
 			throw new Error('MCPClientService not initialized. Call initialize() first.');
 		}
 
 		try {
 			// Get all tools from all connected servers
-			const allTools = await this.client.listTools();
-			return allTools;
+			return await this.client.getTools();
 		} catch (error) {
 			console.error('Failed to retrieve tools from MCP servers:', error);
 			throw error;
@@ -103,14 +77,14 @@ export class MCPClientService {
 	/**
 	 * Gets a specific tool by name from connected MCP servers
 	 */
-	async getToolByName(name: string): Promise<Tool | null> {
+	async getToolByName(name: string): Promise<DynamicStructuredTool | null> {
 		if (!this.initialized || !this.client) {
 			throw new Error('MCPClientService not initialized. Call initialize() first.');
 		}
 
 		try {
 			// Find and return the specific tool
-			const allTools = await this.client.listTools();
+			const allTools = await this.client.getTools();
 			return allTools.find((tool) => tool.name === name) || null;
 		} catch (error) {
 			console.error(`Failed to retrieve tool '${name}' from MCP servers:`, error);
@@ -124,7 +98,7 @@ export class MCPClientService {
 	async dispose(): Promise<void> {
 		if (this.client) {
 			try {
-				await this.client.disconnect();
+				await this.client.close();
 				console.log('MCPClientService disconnected from all servers');
 			} catch (error) {
 				console.error('Error disconnecting MCPClientService:', error);

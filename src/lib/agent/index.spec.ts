@@ -1,18 +1,18 @@
 import { describe, it, expect, vi } from 'vitest';
-import { callModel } from './index';
+import { agentNode } from './index';
 import { HumanMessage } from '@langchain/core/messages';
 import { ChatOllama } from '@langchain/ollama';
 
 vi.mock('@langchain/ollama');
 
-describe('callModel', () => {
+describe('agentNode', () => {
 	it('should return a message from the model', async () => {
 		const mockInvoke = vi.fn().mockResolvedValue({ content: 'test response' });
 		const mockModel = new ChatOllama({});
 		mockModel.invoke = mockInvoke;
 
 		const state = { messages: [new HumanMessage('test message')] };
-		const response = await callModel(state, mockModel);
+		const response = await agentNode(mockModel)(state);
 
 		expect(mockInvoke).toHaveBeenCalledWith(state.messages);
 		expect(response.messages).toEqual([{ content: 'test response' }]);
@@ -25,6 +25,6 @@ describe('callModel', () => {
 
 		const state = { messages: [new HumanMessage('test message')] };
 
-		await expect(callModel(state, mockModel)).rejects.toThrow('MODEL_UNAVAILABLE');
+		await expect(agentNode(mockModel)(state)).rejects.toThrow('MODEL_UNAVAILABLE');
 	});
 });
