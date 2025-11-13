@@ -1,4 +1,5 @@
 # 3. Key Features & Functionality
+
 1. Real-Time Conversational Interface (SvelteKit + TailwindCSS).
 2. Local LLM Integration (Ollama + Mistral).
 3. LangGraph.js orchestration with transparent, inspectable reasoning.

@@ -1,4 +1,5 @@
 # 4. System Architecture Overview
+
 Layered, modular design:
 
 1. **Frontend Layer:** Chat UI built in SvelteKit.

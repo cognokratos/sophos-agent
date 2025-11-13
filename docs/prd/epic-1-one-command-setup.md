@@ -9,6 +9,7 @@ Enable newcomers to clone/pull, run a single command, open the app, and complete
 
 This is the shortest path to value for students and educators: fast setup, a working chat, and visibly inspectable orchestration.
 It directly supports PRD goals of:
+
 - **Local-first sandbox**
 - **Reproducibility**
 - **Educational accessibility via Docker Compose**
@@ -55,11 +56,11 @@ and aligns with success metrics around setup speed and reasoning visibility.
 
 ## Risks & Mitigations
 
-| Risk | Mitigation |
-|------|-------------|
-| Setup complexity on Windows/WSL2 | Add explicit WSL2 setup notes and preflight checks. |
-| Version drift between components | Pin versions and document update flow. |
-| Hardware constraints | Default to lightweight Mistral model; note resource tuning tips. |
+| Risk                             | Mitigation                                                       |
+| -------------------------------- | ---------------------------------------------------------------- |
+| Setup complexity on Windows/WSL2 | Add explicit WSL2 setup notes and preflight checks.              |
+| Version drift between components | Pin versions and document update flow.                           |
+| Hardware constraints             | Default to lightweight Mistral model; note resource tuning tips. |
 
 ---
 
@@ -77,9 +78,9 @@ and aligns with success metrics around setup speed and reasoning visibility.
 
 ## Success Metrics
 
-| Metric | Target |
-|---------|--------|
-| **Setup Time** | ≤ 5 minutes from clone to first chat |
+| Metric                | Target                                                                                |
+| --------------------- | ------------------------------------------------------------------------------------- |
+| **Setup Time**        | ≤ 5 minutes from clone to first chat                                                  |
 | **Learning Velocity** | User reports understanding reasoning trace within first session (qualitative measure) |
 
 ---
@@ -93,11 +94,13 @@ and aligns with success metrics around setup speed and reasoning visibility.
 **so that** I can run the system without manual wiring.
 
 **Acceptance Criteria**
+
 - Compose defines all services with pinned versions and healthchecks.
 - README Quickstart includes copy-paste runnable example.
 - Logs show all services healthy.
 
 **Verification**
+
 - UI ↔ Engine ↔ MCP ↔ Ollama connectivity confirmed.
 - Boot time under 2 minutes on baseline machine.
 
@@ -110,11 +113,13 @@ and aligns with success metrics around setup speed and reasoning visibility.
 **so that** I know the local LLM is wired correctly.
 
 **Acceptance Criteria**
+
 - Minimal SvelteKit chat renders and streams tokens.
 - If model missing, user prompted to pull it.
 - Errors surfaced with actionable messages.
 
 **Verification**
+
 - Response proven to originate from local Ollama logs.
 - Average latency ~2s for sample prompt.
 
@@ -127,11 +132,13 @@ and aligns with success metrics around setup speed and reasoning visibility.
 **so that** I can study how agents reason and reproduce sessions.
 
 **Acceptance Criteria**
+
 - Trace of agent reasoning visible per turn.
 - Conversation persisted to markdown file after each message.
 - Local-only data storage confirmed (no telemetry).
 
 **Verification**
+
 - Trace matches LangGraph.js execution path.
 - Markdown includes metadata (timestamp, model, reasoning summary).
 

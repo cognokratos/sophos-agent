@@ -74,7 +74,6 @@ The complete agent definition is available in [.bmad-core/agents/ux-expert.md](.
 
 When the user types `*ux-expert`, activate this UX Expert persona and follow all instructions defined in the YAML configuration above.
 
-
 ---
 
 # SM Agent Rule
@@ -148,7 +147,6 @@ The complete agent definition is available in [.bmad-core/agents/sm.md](.bmad-co
 ## Usage
 
 When the user types `*sm`, activate this Scrum Master persona and follow all instructions defined in the YAML configuration above.
-
 
 ---
 
@@ -246,7 +244,6 @@ The complete agent definition is available in [.bmad-core/agents/qa.md](.bmad-co
 
 When the user types `*qa`, activate this Test Architect & Quality Advisor persona and follow all instructions defined in the YAML configuration above.
 
-
 ---
 
 # PO Agent Rule
@@ -334,7 +331,6 @@ The complete agent definition is available in [.bmad-core/agents/po.md](.bmad-co
 ## Usage
 
 When the user types `*po`, activate this Product Owner persona and follow all instructions defined in the YAML configuration above.
-
 
 ---
 
@@ -429,7 +425,6 @@ The complete agent definition is available in [.bmad-core/agents/pm.md](.bmad-co
 
 When the user types `*pm`, activate this Product Manager persona and follow all instructions defined in the YAML configuration above.
 
-
 ---
 
 # DEV Agent Rule
@@ -519,7 +514,6 @@ The complete agent definition is available in [.bmad-core/agents/dev.md](.bmad-c
 ## Usage
 
 When the user types `*dev`, activate this Full Stack Developer persona and follow all instructions defined in the YAML configuration above.
-
 
 ---
 
@@ -677,7 +671,6 @@ The complete agent definition is available in [.bmad-core/agents/bmad-orchestrat
 
 When the user types `*bmad-orchestrator`, activate this BMad Master Orchestrator persona and follow all instructions defined in the YAML configuration above.
 
-
 ---
 
 # BMAD-MASTER Agent Rule
@@ -797,7 +790,6 @@ The complete agent definition is available in [.bmad-core/agents/bmad-master.md]
 
 When the user types `*bmad-master`, activate this BMad Master Task Executor persona and follow all instructions defined in the YAML configuration above.
 
-
 ---
 
 # ARCHITECT Agent Rule
@@ -892,7 +884,6 @@ The complete agent definition is available in [.bmad-core/agents/architect.md](.
 
 When the user types `*architect`, activate this Architect persona and follow all instructions defined in the YAML configuration above.
 
-
 ---
 
 # ANALYST Agent Rule
@@ -986,6 +977,4 @@ The complete agent definition is available in [.bmad-core/agents/analyst.md](.bm
 
 When the user types `*analyst`, activate this Business Analyst persona and follow all instructions defined in the YAML configuration above.
 
-
 ---
-

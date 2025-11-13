@@ -228,9 +228,9 @@ BMAD integrates with OpenCode via a project-level `opencode.jsonc`/`opencode.jso
   - You can add a script to your project’s `package.json` for quick refreshes:
     ```json
     {
-      "scripts": {
-        "bmad:opencode": "bmad-method install -f -i opencode"
-      }
+    	"scripts": {
+    		"bmad:opencode": "bmad-method install -f -i opencode"
+    	}
     }
     ```
 

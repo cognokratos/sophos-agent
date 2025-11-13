@@ -58,11 +58,11 @@ This supports the PRD’s learning goals: “Build your own tools,” “Inspect
 
 ## Risks & Mitigations
 
-| Risk | Mitigation |
-|------|-------------|
-| Misconfigured or unsafe local tool | Enforce sandbox path & method restrictions. |
-| Increased complexity for learners | Provide “Hello Tool” starter example and walkthrough. |
-| Version mismatch between tool API and agent | Pin adapter API version; add validation check. |
+| Risk                                        | Mitigation                                            |
+| ------------------------------------------- | ----------------------------------------------------- |
+| Misconfigured or unsafe local tool          | Enforce sandbox path & method restrictions.           |
+| Increased complexity for learners           | Provide “Hello Tool” starter example and walkthrough. |
+| Version mismatch between tool API and agent | Pin adapter API version; add validation check.        |
 
 ---
 
@@ -79,11 +79,11 @@ This supports the PRD’s learning goals: “Build your own tools,” “Inspect
 
 ## Success Metrics
 
-| Metric | Target |
-|---------|--------|
-| **Tool Creation Time** | ≤ 10 minutes following docs |
-| **Learning Velocity** | ≥ 80 % of test users can build a tool unaided |
-| **Reproducibility** | Deterministic replay of a session with tool calls |
+| Metric                 | Target                                            |
+| ---------------------- | ------------------------------------------------- |
+| **Tool Creation Time** | ≤ 10 minutes following docs                       |
+| **Learning Velocity**  | ≥ 80 % of test users can build a tool unaided     |
+| **Reproducibility**    | Deterministic replay of a session with tool calls |
 
 ---
 
@@ -96,6 +96,7 @@ This supports the PRD’s learning goals: “Build your own tools,” “Inspect
 **so that** I can extend the agent’s abilities safely.
 
 **Acceptance Criteria**
+
 - Adapter interface documented with TS types.
 - Registry loads tools at startup and validates schema.
 - Unit tests for malformed tool definitions.
@@ -109,6 +110,7 @@ This supports the PRD’s learning goals: “Build your own tools,” “Inspect
 **so that** I can study how tools interact with the agent.
 
 **Acceptance Criteria**
+
 - File Inspector reads text files within allowed directory.
 - Fetcher retrieves limited JSON/HTML data.
 - Both tools visible in reasoning trace.
@@ -122,6 +124,7 @@ This supports the PRD’s learning goals: “Build your own tools,” “Inspect
 **so that** I can understand how reasoning leads to external actions.
 
 **Acceptance Criteria**
+
 - Tool invocations appear as steps in the trace.
 - Markdown output includes tool call blocks with parameters/results.
 - Visual style consistent with base trace component.
@@ -135,6 +138,7 @@ This supports the PRD’s learning goals: “Build your own tools,” “Inspect
 **so that** I can teach or demo how local tools extend the agent.
 
 **Acceptance Criteria**
+
 - New section in README or `/docs/tools.md`.
 - Step-by-step example builds, registers, and invokes a sample tool.
 - Screenshots or GIF showing it in action.

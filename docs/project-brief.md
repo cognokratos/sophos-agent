@@ -63,21 +63,21 @@ This simple interaction chain demonstrates the **LangGraph agent pattern** and *
 
 The **entire environment** is orchestrated with **Docker Compose**, allowing seamless multi-service startup for:
 
-* **Софос Agent** (SvelteKit + Node runtime)
-* **Ollama** (LLM service)
-* **MCP Memory Server**
-* **MCP Fetch Server**
+- **Софос Agent** (SvelteKit + Node runtime)
+- **Ollama** (LLM service)
+- **MCP Memory Server**
+- **MCP Fetch Server**
 
 ### Example `docker-compose.yml`
 
 ```yaml
-version: "3.9"
+version: '3.9'
 services:
   sophos:
     build: .
     container_name: sophos-agent
     ports:
-      - "3000:3000"
+      - '3000:3000'
     environment:
       - OLLAMA_HOST=http://ollama:11434
       - DATA_DIR=/app/data/conversations
@@ -91,19 +91,19 @@ services:
   ollama:
     image: ollama/ollama:latest
     ports:
-      - "11434:11434"
+      - '11434:11434'
     volumes:
       - ollama-data:/root/.ollama
 
   mcp-memory:
     image: mcp/memory
-    command: ["run"]
+    command: ['run']
     volumes:
       - claude-memory:/app/dist
 
   mcp-fetch:
     image: mcp/fetch
-    command: ["run"]
+    command: ['run']
 
 volumes:
   ollama-data:
@@ -120,13 +120,13 @@ volumes:
 
 ## 🗂️ Key Features
 
-* ✨ **Real-time Conversational Chat**
-* 💬 **Markdown-based Persistent Conversations**
-* 🧩 **Composable LangGraph Agent**
-* 🔌 **MCP Server Tool Integration**
-* 🧱 **Functional TypeScript Architecture**
-* 🧠 **Local-First, Inspectable AI Orchestration**
-* 🧰 **Reproducible Environment via Docker Compose**
+- ✨ **Real-time Conversational Chat**
+- 💬 **Markdown-based Persistent Conversations**
+- 🧩 **Composable LangGraph Agent**
+- 🔌 **MCP Server Tool Integration**
+- 🧱 **Functional TypeScript Architecture**
+- 🧠 **Local-First, Inspectable AI Orchestration**
+- 🧰 **Reproducible Environment via Docker Compose**
 
 ---
 
@@ -158,11 +158,11 @@ README.md
 
 Students will learn:
 
-* How to integrate **LLMs with tool APIs** using **LangGraph**.
-* How **MCP servers** expand model capabilities.
-* How to design **functional, type-safe AI pipelines** in TypeScript.
-* How to build and deploy **modular AI web apps** with SvelteKit.
-* How to manage a **multi-container AI system** with Docker Compose.
+- How to integrate **LLMs with tool APIs** using **LangGraph**.
+- How **MCP servers** expand model capabilities.
+- How to design **functional, type-safe AI pipelines** in TypeScript.
+- How to build and deploy **modular AI web apps** with SvelteKit.
+- How to manage a **multi-container AI system** with Docker Compose.
 
 ---
 
