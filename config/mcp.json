@@ -3,7 +3,7 @@
 		"command": "npx",
 		"args": ["-y", "@modelcontextprotocol/server-memory"],
 		"env": {
-			"MEMORY_FILE_PATH": "/path/to/custom/memory.jsonl"
+			"MEMORY_FILE_PATH": "data/memory/memory.jsonl"
 		}
 	},
 	"fetch": {

@@ -275,18 +275,30 @@
 		{/if}
 		<div class="space-y-4">
 			{#each messages as message (message.id)}
-				<div class={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-					<div
-						class={`w-fit max-w-5/6 rounded-lg px-4 py-2 ${
-							message.role === 'user' ? 'bg-blue-600 text-right' : 'bg-gray-700'
-						}`}
-					>
-						<pre class="font-sans whitespace-pre-wrap">{message.content.replaceAll(
-								'<br>',
-								'\n'
-							)}</pre>
+				{#if message.content}
+					<div class={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+						<div
+							class={`w-fit max-w-5/6 rounded-lg px-4 py-2 ${
+								message.role === 'user' ? 'bg-blue-600 text-right' : 'bg-gray-700'
+							}`}
+						>
+							<pre class="font-sans whitespace-pre-wrap">{message.content.replaceAll(
+									'<br>',
+									'\n'
+								)}</pre>
+						</div>
 					</div>
-				</div>
+				{:else}
+					<div
+						class="flex w-fit items-center justify-start space-x-1 rounded-lg bg-gray-700 px-4 py-2"
+					>
+						<span class="h-2 w-2 animate-pulse rounded-full bg-blue-500"></span>
+						<span class="h-2 w-2 animate-pulse rounded-full bg-blue-500 [animation-delay:0.2s]"
+						></span>
+						<span class="h-2 w-2 animate-pulse rounded-full bg-blue-500 [animation-delay:0.4s]"
+						></span>
+					</div>
+				{/if}
 			{/each}
 		</div>
 	</main>
@@ -296,12 +308,15 @@
 			<details>
 				<summary class="cursor-pointer font-bold">Reasoning Trace</summary>
 				<div class="mt-2 space-y-1 text-sm text-gray-400">
-					{#each traceNotes as note}
+					{#each traceNotes as note, i (`note_${i}}`)}
 						<div>
 							<span class="rounded bg-gray-700 px-1 py-0.5 font-mono text-xs"
 								>{note.event.toUpperCase()}</span
 							>
 							<span class="ml-2 font-semibold">{note.node}</span>
+							{#each Object.entries(note.data ?? {}) as [key, value], i (`note_entry_${key}_${i}`)}
+								<span>[{key}: {value}}</span>
+							{/each}
 						</div>
 					{/each}
 				</div>

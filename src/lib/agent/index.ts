@@ -1,5 +1,5 @@
 import { ChatOllama, type ChatOllamaCallOptions } from '@langchain/ollama';
-import { AIMessageChunk, type BaseMessage } from '@langchain/core/messages';
+import { type AIMessageChunk, type BaseMessage } from '@langchain/core/messages';
 import { AIMessage, HumanMessage } from '@langchain/core/messages';
 import { END, MessagesZodMeta, START, StateGraph } from '@langchain/langgraph';
 import { registry } from '@langchain/langgraph/zod';
@@ -7,7 +7,7 @@ import * as z from 'zod';
 import type { AgentEvent } from '$lib/chat';
 import { getMCPClientService } from './mcp/client';
 import type { BaseLanguageModelInput } from '@langchain/core/language_models/base';
-import { Runnable } from '@langchain/core/runnables';
+import { type Runnable } from '@langchain/core/runnables';
 import { ToolNode } from '@langchain/langgraph/prebuilt';
 
 const MessagesStateSchema = z.object({
@@ -75,27 +75,51 @@ const graph = await initGraph();
 export async function* runAgent(message: string): AsyncGenerator<AgentEvent> {
 	const stream = await graph.stream(
 		{ messages: [new HumanMessage(message)] },
-		{ streamMode: 'updates' }
+		{ streamMode: 'messages' }
 	);
 
-	for await (const output of stream) {
-		const nodeName = Object.keys(output)[0];
-		yield { type: 'trace', data: { node: nodeName, event: 'enter' } };
+	let currentStep = -1;
+	let currentNode = '';
 
-		if (output.agent) {
-			for (const msg of output.agent.messages) {
-				if (msg.content) {
-					const content = msg.content as string;
-					yield { type: 'token', data: content };
-				}
+	for await (const [msg, meta] of stream) {
+		const nodeName = meta.langgraph_node;
+		const step = meta.langgraph_step;
+
+		// Handle node/step transitions
+		if (step > currentStep) {
+			if (currentNode && currentNode !== nodeName) {
+				yield { type: 'trace', data: { node: currentNode, event: 'leave' } };
 			}
+
+			currentStep = step;
+			currentNode = nodeName;
+
+			yield { type: 'trace', data: { node: nodeName, event: 'enter' } };
 		}
 
-		if (output.tools) {
-			yield { type: 'trace', data: { node: 'tools', event: 'tool' } };
+		if (nodeName === 'agent' && msg.content) {
+			yield {
+				type: 'token',
+				data: msg.content.toString()
+			};
 		}
 
-		yield { type: 'trace', data: { node: nodeName, event: 'leave' } };
+		if (nodeName === 'tools' && msg.name) {
+			yield {
+				type: 'trace',
+				data: {
+					node: 'tools',
+					event: 'tool',
+					data: { name: msg.name }
+				}
+			};
+		}
 	}
+
+	// Final leave + end
+	if (currentNode) {
+		yield { type: 'trace', data: { node: currentNode, event: 'leave' } };
+	}
+
 	yield { type: 'end' };
 }

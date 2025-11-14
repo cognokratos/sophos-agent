@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { MCPClientService, getMCPClientService } from './client';
 import { loadMCPConfig } from './config';
 
@@ -32,6 +32,7 @@ describe('MCPClientService', () => {
 		vi.mock('./client', async (importOriginal) => {
 			const mod = await importOriginal();
 			return {
+				// @ts-expect-error ignore
 				...mod,
 				mcpClientService: mockMcpService.current
 			};
@@ -54,7 +55,7 @@ describe('MCPClientService', () => {
 					args: ['hello']
 				}
 			};
-			(loadMCPConfig as vi.Mock).mockReturnValue(mockConfig);
+			(loadMCPConfig as Mock).mockReturnValue(mockConfig);
 
 			await expect(mcpClientService.initialize()).resolves.not.toThrow();
 			expect(mcpClientService.isInitialized()).toBe(true);
@@ -62,14 +63,14 @@ describe('MCPClientService', () => {
 
 		it('should handle case when no MCP servers are configured', async () => {
 			// Mock empty configuration
-			(loadMCPConfig as vi.Mock).mockReturnValue({});
+			(loadMCPConfig as Mock).mockReturnValue({});
 
 			await mcpClientService.initialize();
 			expect(mcpClientService.isInitialized()).toBe(true);
 		});
 
 		it('should throw error when configuration is invalid', async () => {
-			(loadMCPConfig as vi.Mock).mockImplementation(() => {
+			(loadMCPConfig as Mock).mockImplementation(() => {
 				throw new Error('Invalid config');
 			});
 
@@ -85,7 +86,7 @@ describe('MCPClientService', () => {
 					args: ['hello']
 				}
 			};
-			(loadMCPConfig as vi.Mock).mockReturnValue(mockConfig);
+			(loadMCPConfig as Mock).mockReturnValue(mockConfig);
 
 			await mcpClientService.initialize();
 			const initialCallCount = vi.mocked(loadMCPConfig).mock.calls.length;
@@ -109,7 +110,7 @@ describe('MCPClientService', () => {
 				}
 			];
 
-			(loadMCPConfig as vi.Mock).mockReturnValue({
+			(loadMCPConfig as Mock).mockReturnValue({
 				'test-server': {
 					transport: 'stdio',
 					command: 'echo',
@@ -156,7 +157,7 @@ describe('MCPClientService', () => {
 				}
 			];
 
-			(loadMCPConfig as vi.Mock).mockReturnValue({
+			(loadMCPConfig as Mock).mockReturnValue({
 				'test-server': {
 					transport: 'stdio',
 					command: 'echo',
@@ -189,7 +190,7 @@ describe('MCPClientService', () => {
 				}
 			];
 
-			(loadMCPConfig as vi.Mock).mockReturnValue({
+			(loadMCPConfig as Mock).mockReturnValue({
 				'test-server': {
 					transport: 'stdio',
 					command: 'echo',
@@ -221,7 +222,7 @@ describe('MCPClientService', () => {
 
 	describe('dispose', () => {
 		it('should disconnect and clean up resources', async () => {
-			(loadMCPConfig as vi.Mock).mockReturnValue({
+			(loadMCPConfig as Mock).mockReturnValue({
 				'test-server': {
 					transport: 'stdio',
 					command: 'echo',
