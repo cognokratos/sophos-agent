@@ -113,16 +113,16 @@ This supports the PRD’s learning goals: “Build your own tools,” “Inspect
 **Acceptance Criteria**
 
 1. The **Memory MCP** is demonstrated as a reference tool:
-    * Example interactions show reading/writing memory entries.
-    * Tool calls appear clearly in the reasoning trace.
+   - Example interactions show reading/writing memory entries.
+   - Tool calls appear clearly in the reasoning trace.
 2. The **Fetch MCP** is demonstrated as a reference tool:
-    * Example interactions show performing safe HTTP GET requests using the existing MCP adapter.
+   - Example interactions show performing safe HTTP GET requests using the existing MCP adapter.
 3. No new MCP tools are introduced or implemented.
 4. Documentation includes:
-    * A short “Using the Memory MCP” example.
-    * A short “Using the Fetch MCP” example.
-    * Both examples visible in the reasoning trace.
-   
+   - A short “Using the Memory MCP” example.
+   - A short “Using the Fetch MCP” example.
+   - Both examples visible in the reasoning trace.
+
 ---
 
 ### Story 2.3 — Trace & Markdown Integration
@@ -133,7 +133,7 @@ This supports the PRD’s learning goals: “Build your own tools,” “Inspect
 
 **Acceptance Criteria**
 
-1. Tool invocations appear as steps in the trace. 
+1. Tool invocations appear as steps in the trace.
 2. Markdown persistence captures the tool invocation blocks
 
 ---
