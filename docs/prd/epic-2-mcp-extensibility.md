@@ -89,17 +89,18 @@ This supports the PRD’s learning goals: “Build your own tools,” “Inspect
 
 ## Stories
 
-### Story 2.1 — Adapter Interface & Registry
+### Story 2.1 — Integrate LangChain MCP Adapters
 
-**As a** developer
-**I want** a clear API to define and register MCP tools
-**so that** I can extend the agent’s abilities safely.
+**As a** developer,  
+**I want** to integrate the `@langchain/mcp-adapters` library,  
+**so that** the agent can connect to and utilize external MCP tools.
 
 **Acceptance Criteria**
 
-- Adapter interface documented with TS types.
-- Registry loads tools at startup and validates schema.
-- Unit tests for malformed tool definitions.
+1. The `@langchain/mcp-adapters` library is installed and configured.
+2. A `MultiServerMCPClient` instance is initialized at agent startup, connecting to specified MCP servers.
+3. The agent can retrieve and utilize tools exposed by the `MultiServerMCPClient`.
+4. Unit tests confirm successful client initialization and tool retrieval.
 
 ---
 
@@ -162,6 +163,6 @@ This supports the PRD’s learning goals: “Build your own tools,” “Inspect
 
 ---
 
-**Epic Owner:** Product / Systems PM
-**Contributors:** Fullstack + Tooling Team
+**Epic Owner:** Product / Systems PM  
+**Contributors:** Fullstack + Tooling Team  
 **Status:** Draft ✅ Ready for refinement
