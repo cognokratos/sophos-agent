@@ -91,7 +91,7 @@ This supports the PRD’s learning goals: “Build your own tools,” “Inspect
 
 ### Story 2.1 — Integrate LangChain MCP Adapters
 
-**As a** developer,  
+**As a** developer
 **I want** to integrate the `@langchain/mcp-adapters` library,  
 **so that** the agent can connect to and utilize external MCP tools.
 
@@ -104,18 +104,25 @@ This supports the PRD’s learning goals: “Build your own tools,” “Inspect
 
 ---
 
-### Story 2.2 — Reference Tools: File Inspector & Fetcher
+### Story 2.2 — Reference Examples: Memory & Fetch MCP
 
 **As a** learner
-**I want** ready-to-use examples
-**so that** I can study how tools interact with the agent.
+**I want** working examples of how the agent uses existing MCP tools
+**so that** I can understand tool invocation and how external capabilities integrate with reasoning.
 
 **Acceptance Criteria**
 
-- File Inspector reads text files within allowed directory.
-- Fetcher retrieves limited JSON/HTML data.
-- Both tools visible in reasoning trace.
-
+1. The **Memory MCP** is demonstrated as a reference tool:
+    * Example interactions show reading/writing memory entries.
+    * Tool calls appear clearly in the reasoning trace.
+2. The **Fetch MCP** is demonstrated as a reference tool:
+    * Example interactions show performing safe HTTP GET requests using the existing MCP adapter.
+3. No new MCP tools are introduced or implemented.
+4. Documentation includes:
+    * A short “Using the Memory MCP” example.
+    * A short “Using the Fetch MCP” example.
+    * Both examples visible in the reasoning trace.
+   
 ---
 
 ### Story 2.3 — Trace & Markdown Integration
@@ -126,23 +133,8 @@ This supports the PRD’s learning goals: “Build your own tools,” “Inspect
 
 **Acceptance Criteria**
 
-- Tool invocations appear as steps in the trace.
-- Markdown output includes tool call blocks with parameters/results.
-- Visual style consistent with base trace component.
-
----
-
-### Story 2.4 — Developer Documentation
-
-**As an** educator or contributor
-**I want** a simple “Hello Tool” tutorial
-**so that** I can teach or demo how local tools extend the agent.
-
-**Acceptance Criteria**
-
-- New section in README or `/docs/tools.md`.
-- Step-by-step example builds, registers, and invokes a sample tool.
-- Screenshots or GIF showing it in action.
+1. Tool invocations appear as steps in the trace. 
+2. Markdown persistence captures the tool invocation blocks
 
 ---
 
