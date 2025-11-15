@@ -1,4 +1,5 @@
 # 11. Roadmap & Milestones
+
 **Phase 1 — Foundation (Months 1–2)**
 Core architecture, chat interface, Docker Compose setup.
 
@@ -14,6 +15,7 @@ Academic partnerships, research publication, expanded LLM support.
 ---
 
 ## ✅ PRD Completion Summary
+
 **Document Created By:** PM Agent (BMAD Team Fullstack)
 **Workflow:** `/pm *create-prd` interactive elicitation
 **Context:** Derived from “Софос Agent — Project Brief”

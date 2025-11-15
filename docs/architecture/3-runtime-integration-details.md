@@ -2,35 +2,48 @@
 
 ## 3.1 Processes & Boundaries
 
-* **web (SvelteKit + Agent, v0 monolith)** — UI, `/api/*` endpoints, invokes graph.
-* **ollama** — model server; default `mistral`.
-* **mcp-memory / mcp-fetch** — tool servers.
-* **persistence** — host-mounted `data/logs/`.
+- **web (SvelteKit + Agent, v0 monolith)** — UI, `/api/*` endpoints, invokes graph.
+- **ollama** — model server; default `mistral`.
+- **mcp-memory / mcp-fetch** — tool servers.
+- **persistence** — host-mounted `data/logs/`.
   All orchestrated via Compose profiles.
 
 ## 3.2 Public HTTP API (thin surface)
 
-* **POST `/api/chat`** — submit a turn.
-* **GET `/api/chat?sessionId=...`** — fetch a chat session. **SSE** stream events: `token`, `trace`, `tool`, `done`.
-* **GET `/api/models`** — list available Ollama models.
-* **GET `/api/logs/:sessionId`** — fetch Markdown transcript + trace refs.
+- **POST `/api/chat`** — submit a turn.
+- **GET `/api/chat?sessionId=...`** — fetch a chat session. **SSE** stream events: `token`, `trace`, `tool`, `done`.
+- **GET `/api/models`** — list available Ollama models.
+- **GET `/api/logs/:sessionId`** — fetch Markdown transcript + trace refs.
   Keep endpoints minimal; move complexity into the agent engine for teachability.
 
 ## 3.3 Message Contracts (shared types)
 
 ```ts
-export type Role = 'user'|'assistant'|'system'|'tool';
-export interface Message { id:string; role:Role; content:string; toolCalls?: ToolCall[]; }
-export interface ToolCall { id:string; name:string; args:Record<string,unknown>; }
-
-export interface ChatRequest {
-  sessionId: string;
-  messages: Message[];
-  tools?: { name:string; required?:boolean; argsSchema?:Record<string,unknown>; }[];
-  params?: { temperature?: number; maxTokens?: number; };
+export type Role = 'user' | 'assistant' | 'system' | 'tool';
+export interface Message {
+	id: string;
+	role: Role;
+	content: string;
+	toolCalls?: ToolCall[];
+}
+export interface ToolCall {
+	id: string;
+	name: string;
+	args: Record<string, unknown>;
 }
 
-export interface TraceNote { node:string; event:string; data?:Record<string,unknown>; }
+export interface ChatRequest {
+	sessionId: string;
+	messages: Message[];
+	tools?: { name: string; required?: boolean; argsSchema?: Record<string, unknown> }[];
+	params?: { temperature?: number; maxTokens?: number };
+}
+
+export interface TraceNote {
+	node: string;
+	event: string;
+	data?: Record<string, unknown>;
+}
 ```
 
 ## 3.4 Streaming Protocol
@@ -41,7 +54,13 @@ export interface TraceNote { node:string; event:string; data?:Record<string,unkn
 
 ```ts
 interface ApiError {
-  error: { code:string; message:string; details?:Record<string,any>; timestamp:string; requestId:string; }
+	error: {
+		code: string;
+		message: string;
+		details?: Record<string, any>;
+		timestamp: string;
+		requestId: string;
+	};
 }
 ```
 

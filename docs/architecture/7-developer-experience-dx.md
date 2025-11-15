@@ -15,9 +15,9 @@ infra/ (compose, Dockerfiles, profiles) • data/logs/ • scripts/ • docs/
 
 ## 7.3 Testing & QA
 
-* **Unit:** Vitest for graph nodes & adapters.
-* **Integration:** Playwright for chat flow.
-* **Compose smoke:** ping `/api/models`.
-* **CI:** GitHub Actions; version pinning. (Education-grade, transparent.)
+- **Unit:** Vitest for graph nodes & adapters.
+- **Integration:** Playwright for chat flow.
+- **Compose smoke:** ping `/api/models`.
+- **CI:** GitHub Actions; version pinning. (Education-grade, transparent.)
 
 ---

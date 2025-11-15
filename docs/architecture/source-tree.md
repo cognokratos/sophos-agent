@@ -6,7 +6,7 @@ sofos-agent/
 ├── src/                              # SvelteKit + Agent (v0 monolith)
 │   ├── lib/
 │   │   ├── agent/                    # LangGraph.js graphs, nodes, policies
-│   │   │   ├── mcp/                  # MCP adapters (Memory, Fetch)
+│   │   │   ├── mcp/                  # Agent-specific MCP tool integration (e.g., how the agent uses the tools)
 │   │   │   ├── persistence/          # Markdown + trace.jsonl writers/readers
 │   │   │   ├── error/                # ApiError helpers, guards, mappers
 │   │   │   └── metrics/              # in-process counters/histograms
@@ -60,15 +60,15 @@ sofos-agent/
 
 ## Notable directories
 
-* `src/lib/agent/` — Graph orchestration with LangGraph.js; nodes emit TraceNotes.
-* `src/lib/mcp/` — MCP bridge via adapters; register tools here.
-* `src/lib/persistence/` — Markdown + JSONL writers; abstracted behind a small interface to allow SQLite later.
+- `src/lib/agent/` — Graph orchestration with LangGraph.js; nodes emit TraceNotes.
+- `src/lib/mcp/` — `MultiServerMCPClient` and core MCP adapter logic; responsible for connecting to and retrieving tools from MCP servers.
+- `src/lib/persistence/` — Markdown + JSONL writers; abstracted behind a small interface to allow SQLite later.
 
 ## Compose profiles
 
-* `warmup` — pre-pull `ollama` and the default model (e.g., `mistral`).
-* `publish` — opt-in; binds services to `0.0.0.0` for demos.
-* `split` — runs a separate `agent` container; same HTTP contracts.
+- `warmup` — pre-pull `ollama` and the default model (e.g., `mistral`).
+- `publish` — opt-in; binds services to `0.0.0.0` for demos.
+- `split` — runs a separate `agent` container; same HTTP contracts.
 
 ## Environment variables (mirrored in `.env.example`)
 
