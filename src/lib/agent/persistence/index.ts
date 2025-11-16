@@ -1,9 +1,10 @@
+import { env } from '$env/dynamic/private';
 import { appendFile, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { ChatMessage, ChatRole, TraceNote } from '$lib/chat';
 
 function getLogDir(): string {
-	return process.env.LOG_DIR ?? 'data/logs';
+	return env.LOG_DIR ?? 'data/logs';
 }
 
 /**

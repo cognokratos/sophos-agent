@@ -97,7 +97,6 @@
 	// --- SSE Handling ---
 	function appendToken(token: string) {
 		const last = messages.at(-1);
-		console.log('append token:', token);
 		if (last?.role === 'assistant') {
 			last.content += token;
 		}
@@ -250,6 +249,7 @@
 			console.log('handleSubmit: POST /api/chat successful, data:', data);
 			conv = data.conv;
 			session = data.session;
+			persistState();
 			startSse(data.session);
 		} catch (e) {
 			clearTimeout(timeoutId);
@@ -264,6 +264,7 @@
 <div class="flex h-screen flex-col bg-gray-900 text-white">
 	<header class="bg-gray-800 p-4 shadow-md">
 		<h1 class="text-2xl font-bold">Sophos Agent</h1>
+		<p data-testid="conversation-id">{conv ?? 'New conversation'}</p>
 	</header>
 
 	<main bind:this={chatContainer} class="flex-1 overflow-y-auto p-4">
@@ -282,10 +283,11 @@
 								message.role === 'user' ? 'bg-blue-600 text-right' : 'bg-gray-700'
 							}`}
 						>
-							<pre class="font-sans whitespace-pre-wrap">{message.content.replaceAll(
-									'<br>',
-									'\n'
-								)}</pre>
+							<p
+								class="font-sans whitespace-pre-wrap"
+								data-testid={message.role === 'user' ? 'user-message' : 'assistant-message'}>
+								{message.content.trim().replaceAll('<br>', '\n')}
+							</p>
 						</div>
 					</div>
 				{:else}
@@ -306,8 +308,10 @@
 	{#if traceNotes.length > 0}
 		<div class="border-t border-gray-700 bg-gray-800 p-4">
 			<details>
-				<summary class="cursor-pointer font-bold">Reasoning Trace</summary>
-				<div class="mt-2 space-y-1 text-sm text-gray-400">
+				<summary class="cursor-pointer font-bold" data-testid="reasoning-summary"
+					>Reasoning Trace</summary
+				>
+				<div class="mt-2 space-y-1 text-sm text-gray-400" data-testid="reasoning-trace">
 					{#each traceNotes as note, i (`note_${i}}`)}
 						<div>
 							<span class="rounded bg-gray-700 px-1 py-0.5 font-mono text-xs"
@@ -333,6 +337,7 @@
 				class="flex-1 rounded-l-lg bg-gray-700 p-2 focus:outline-none disabled:opacity-50"
 				disabled={isStreaming}
 				aria-label="Chat input"
+				data-testid="chat-input"
 			/>
 			{#if isStreaming}
 				<button
@@ -349,13 +354,16 @@
 					class="rounded-r-lg bg-blue-600 p-2 px-4 font-bold disabled:bg-gray-500"
 					disabled={isSubmitDisabled}
 					aria-label="Send message"
+					data-testid="send-button"
 				>
 					Send
 				</button>
 			{/if}
 		</form>
 		{#if isStreaming}
-			<p class="pt-2 text-center text-sm text-gray-400">Responding...</p>
+			<p class="pt-2 text-center text-sm text-gray-400" data-testid="status-responding">
+				Responding...
+			</p>
 		{/if}
 	</footer>
 </div>

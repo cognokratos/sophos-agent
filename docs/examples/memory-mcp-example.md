@@ -16,22 +16,22 @@ To demonstrate the Memory MCP tool, you can ask the agent to:
 Remember that my favorite color is blue.
 ```
 
-The agent will use the `memory.write` tool to store this information.
+The agent will use the `create_entities` tool to store this information.
 
 ### Read from Memory
 
 ```
-What did I tell you to remember?
+What is my favorite color?
 ```
 
-The agent will use the `memory.read` tool to retrieve previously stored information.
+The agent will use the `search_nodes` tool to retrieve previously stored information.
 
 ## Expected Tool Calls
 
 When using the Memory MCP, you should see these tool calls in the reasoning trace:
 
-- `memory.write` - When storing information
-- `memory.read` - When retrieving information
+- `create_entities` - When storing information
+- `search_nodes` - When retrieving information
 
 ## Integration Details
 
