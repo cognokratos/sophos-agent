@@ -95,6 +95,7 @@ async function startAgent(
 
 		let assistantContent = '';
 		const assistantMessage: ChatMessage = { role: 'assistant', content: '' };
+		const toolCallTraces: import('$lib/chat').TraceNote[] = [];
 
 		for await (const event of runAgent(userMessage.content)) {
 			sessionObj.updatedAt = Date.now();
@@ -116,6 +117,12 @@ async function startAgent(
 				}
 				case 'trace': {
 					await writeTrace(conv, event.data);
+
+					// If this is a tool-related trace event, store it for markdown persistence
+					if (event.data.event === 'tool_call' || event.data.event === 'tool_result') {
+						toolCallTraces.push(event.data);
+					}
+
 					const traceEventStr = `id: ${id}\nevent: trace\ndata: ${JSON.stringify(event.data)}\n\n`;
 					sessionObj.events.push(traceEventStr);
 					for (const send of sessionObj.subscribers) {
@@ -132,7 +139,7 @@ async function startAgent(
 					sessionObj.status = 'done';
 					assistantMessage.content = assistantContent;
 					const nextTurn = await getNextTurn(conv);
-					await writeMessageFile(conv, nextTurn, assistantMessage);
+					await writeMessageFile(conv, nextTurn, assistantMessage, toolCallTraces);
 
 					const endEventStr = `id: ${id}\nevent: end\ndata: ${JSON.stringify({ conv, session })}\n\n`;
 					sessionObj.events.push(endEventStr);

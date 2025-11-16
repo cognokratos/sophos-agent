@@ -12,7 +12,7 @@ export interface ChatRequest {
 
 export interface TraceNote {
 	node: string;
-	event: 'enter' | 'tool' | 'leave' | 'stream' | 'error';
+	event: 'enter' | 'leave' | 'stream' | 'error' | 'tool' | 'tool_call' | 'tool_result';
 	data?: Record<string, unknown>;
 }
 

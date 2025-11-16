@@ -5,7 +5,7 @@ import { AIMessage, HumanMessage } from '@langchain/core/messages';
 import { END, MessagesZodMeta, START, StateGraph } from '@langchain/langgraph';
 import { registry } from '@langchain/langgraph/zod';
 import * as z from 'zod';
-import type { AgentEvent } from '$lib/chat';
+import type { AgentEvent, TraceNote } from '$lib/chat';
 import { getMCPClientService } from './mcp/client';
 import type { BaseLanguageModelInput } from '@langchain/core/language_models/base';
 import { type Runnable } from '@langchain/core/runnables';
@@ -79,7 +79,7 @@ const graph = await initGraph();
 export async function* runAgent(message: string): AsyncGenerator<AgentEvent> {
 	const stream = await graph.stream(
 		{ messages: [new HumanMessage(message)] },
-		{ streamMode: 'messages' }
+		{ streamMode: 'messages', interruptBefore: [] }
 	);
 
 	let currentStep = -1;
@@ -108,16 +108,40 @@ export async function* runAgent(message: string): AsyncGenerator<AgentEvent> {
 			};
 		}
 
-		if (nodeName === 'tools' && msg.name) {
-			console.log(meta, msg);
-			yield {
-				type: 'trace',
-				data: {
-					node: 'tools',
-					event: 'tool',
-					data: { name: msg.name }
+		// Handle tool call events
+		if (nodeName === 'tools') {
+			// Check if this is a tool message with tool call details
+			if (msg.name && msg.tool_call_id) {
+				// This represents a tool result - we can provide more detailed information
+				yield {
+					type: 'trace',
+					data: {
+						node: 'tools',
+						event: 'tool_result',
+						data: {
+							name: msg.name,
+							tool_call_id: msg.tool_call_id,
+							result: msg.content
+						}
+					}
+				};
+			} else if (AIMessage.isInstance(msg) && msg.tool_calls?.length > 0) {
+				// This is a message with tool calls to be executed
+				for (const toolCall of msg.tool_calls) {
+					yield {
+						type: 'trace',
+						data: {
+							node: 'tools',
+							event: 'tool_call',
+							data: {
+								name: toolCall.name,
+								arguments: toolCall.args,
+								tool_call_id: toolCall.id
+							}
+						}
+					};
 				}
-			};
+			}
 		}
 	}
 
