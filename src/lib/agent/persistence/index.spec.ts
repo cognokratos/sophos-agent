@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { writeMessageFile, writeTrace } from './index';
 import type { ChatMessage, TraceNote } from '$lib/chat';
 
-const TEST_LOG_DIR = 'data/test-logs';
+const TEST_LOG_DIR = 'data/logs';
 
 describe('Persistence Module', () => {
 	beforeEach(async () => {

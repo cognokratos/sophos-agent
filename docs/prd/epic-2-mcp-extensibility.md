@@ -89,31 +89,39 @@ This supports the PRD’s learning goals: “Build your own tools,” “Inspect
 
 ## Stories
 
-### Story 2.1 — Adapter Interface & Registry
+### Story 2.1 — Integrate LangChain MCP Adapters
 
 **As a** developer
-**I want** a clear API to define and register MCP tools
-**so that** I can extend the agent’s abilities safely.
+**I want** to integrate the `@langchain/mcp-adapters` library,  
+**so that** the agent can connect to and utilize external MCP tools.
 
 **Acceptance Criteria**
 
-- Adapter interface documented with TS types.
-- Registry loads tools at startup and validates schema.
-- Unit tests for malformed tool definitions.
+1. The `@langchain/mcp-adapters` library is installed and configured.
+2. A `MultiServerMCPClient` instance is initialized at agent startup, connecting to specified MCP servers.
+3. The agent can retrieve and utilize tools exposed by the `MultiServerMCPClient`.
+4. Unit tests confirm successful client initialization and tool retrieval.
 
 ---
 
-### Story 2.2 — Reference Tools: File Inspector & Fetcher
+### Story 2.2 — Reference Examples: Memory & Fetch MCP
 
 **As a** learner
-**I want** ready-to-use examples
-**so that** I can study how tools interact with the agent.
+**I want** working examples of how the agent uses existing MCP tools
+**so that** I can understand tool invocation and how external capabilities integrate with reasoning.
 
 **Acceptance Criteria**
 
-- File Inspector reads text files within allowed directory.
-- Fetcher retrieves limited JSON/HTML data.
-- Both tools visible in reasoning trace.
+1. The **Memory MCP** is demonstrated as a reference tool:
+   - Example interactions show reading/writing memory entries.
+   - Tool calls appear clearly in the reasoning trace.
+2. The **Fetch MCP** is demonstrated as a reference tool:
+   - Example interactions show performing safe HTTP GET requests using the existing MCP adapter.
+3. No new MCP tools are introduced or implemented.
+4. Documentation includes:
+   - A short “Using the Memory MCP” example.
+   - A short “Using the Fetch MCP” example.
+   - Both examples visible in the reasoning trace.
 
 ---
 
@@ -125,23 +133,8 @@ This supports the PRD’s learning goals: “Build your own tools,” “Inspect
 
 **Acceptance Criteria**
 
-- Tool invocations appear as steps in the trace.
-- Markdown output includes tool call blocks with parameters/results.
-- Visual style consistent with base trace component.
-
----
-
-### Story 2.4 — Developer Documentation
-
-**As an** educator or contributor
-**I want** a simple “Hello Tool” tutorial
-**so that** I can teach or demo how local tools extend the agent.
-
-**Acceptance Criteria**
-
-- New section in README or `/docs/tools.md`.
-- Step-by-step example builds, registers, and invokes a sample tool.
-- Screenshots or GIF showing it in action.
+1. Tool invocations appear as steps in the trace.
+2. Markdown persistence captures the tool invocation blocks
 
 ---
 
@@ -162,6 +155,6 @@ This supports the PRD’s learning goals: “Build your own tools,” “Inspect
 
 ---
 
-**Epic Owner:** Product / Systems PM
-**Contributors:** Fullstack + Tooling Team
+**Epic Owner:** Product / Systems PM  
+**Contributors:** Fullstack + Tooling Team  
 **Status:** Draft ✅ Ready for refinement

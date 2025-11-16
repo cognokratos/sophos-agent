@@ -1,3 +1,4 @@
+import { env } from '$env/dynamic/private';
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
 import type { ChatRequest, ChatMessage } from '$lib/chat';
@@ -6,7 +7,7 @@ import { writeMessageFile, writeTrace } from '$lib/agent/persistence';
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
-const LOG_DIR = process.env.LOG_DIR ?? 'data/logs';
+const LOG_DIR = env.LOG_DIR ?? 'data/logs';
 
 interface Session {
 	conv: string;

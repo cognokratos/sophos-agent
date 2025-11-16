@@ -1,3 +1,4 @@
+import { env } from '$env/dynamic/private';
 import { ChatOllama, type ChatOllamaCallOptions } from '@langchain/ollama';
 import { type AIMessageChunk, type BaseMessage } from '@langchain/core/messages';
 import { AIMessage, HumanMessage } from '@langchain/core/messages';
@@ -50,7 +51,10 @@ async function shouldContinue(state: MessagesState) {
 }
 
 async function initGraph() {
-	const model = new ChatOllama({ model: 'qwen3' });
+	const model = new ChatOllama({
+		model: env.OLLAMA_MODEL ?? 'qwen3',
+		baseUrl: env.OLLAMA_HOST ?? 'http://localhost:11434'
+	});
 
 	const client = getMCPClientService();
 	if (!client.isInitialized()) {
@@ -105,6 +109,7 @@ export async function* runAgent(message: string): AsyncGenerator<AgentEvent> {
 		}
 
 		if (nodeName === 'tools' && msg.name) {
+			console.log(meta, msg);
 			yield {
 				type: 'trace',
 				data: {
