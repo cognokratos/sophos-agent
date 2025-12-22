@@ -31,60 +31,67 @@ test.describe('Reasoning Trace & Persistence', () => {
 		await page.getByTestId('chat-input').fill(TEST_MESSAGE);
 		await page.getByTestId('send-button').click();
 
+		// Wait for the response to complete
+		const chatResponse = await page.waitForResponse((r) => {
+			return r.request().method() === 'POST' && r.url().includes('/api/chat') && r.ok();
+		});
+		const { conv } = await chatResponse.json();
+
+		expect(conv).toBeTruthy();
+		conversationId = conv;
+		expect(conversationId).not.toBeNull();
+
 		// 2. Verify the reasoning trace UI appears and populates
 		// <summary>Reasoning Trace</summary>
 		const traceSummary = page.getByTestId('reasoning-summary');
 
-		// Only do this if the trace is actually present
-		if (await traceSummary.isVisible()) {
-			await traceSummary.click();
+		await expect(traceSummary).toBeVisible({
+			timeout: 30_000
+		});
 
-			// Wait for the trace container to become visible
-			const trace = page.getByTestId('reasoning-trace');
-			await expect(trace).toBeVisible();
-			// Check for specific events inside the scoped trace container
-			await expect(trace).toContainText('ENTER');
-			await expect(trace).toContainText('agent');
-			await expect(trace).toContainText('LEAVE');
+		await traceSummary.click();
 
-			// 3. Wait for the response to complete
-			// Status text "Responding..." should disappear once the response is done.
-			await expect(page.getByTestId('status-responding')).not.toBeVisible({
-				timeout: 20000
-			});
+		// Wait for the trace container to become visible
+		const trace = page.getByTestId('reasoning-trace');
+		await expect(trace).toBeVisible();
+		// Check for specific events inside the scoped trace container
+		await expect(trace).toContainText('ENTER');
+		await expect(trace).toContainText('agent');
+		await expect(trace).toContainText('LEAVE');
 
-			// 4. Verify log files were created
-			// We need to get the conversation ID. We can grab it from localStorage after the fact.
-			conversationId = await page.evaluate(() => localStorage.getItem('chat:conv'));
-			expect(conversationId).not.toBeNull();
+		// 3. Wait for the response to complete
+		// Status text "Responding..." should disappear once the response is done.
+		await expect(page.getByTestId('status-responding')).not.toBeVisible({
+			timeout: 20_000
+		});
 
-			const sessionDir = join(LOG_DIR, conversationId!);
-			const files = await readdir(sessionDir);
+		// 4. Verify log files were created
+		const sessionDir = join(LOG_DIR, conversationId!);
+		const files = await readdir(sessionDir);
 
-			// Check for user message, assistant message, and trace log
-			expect(files).toContain('0001.user.md');
-			expect(files).toContain('0002.assistant.md');
-			expect(files).toContain('trace.jsonl');
+		// Check for user message, assistant message, and trace log
+		expect(files).toContain('0001.user.md');
+		expect(files).toContain('0002.assistant.md');
+		expect(files).toContain('trace.jsonl');
 
-			// 5. Verify file contents
+		// 5. Verify file contents
 
-			// User message
-			const userMsgContent = await readFile(join(sessionDir, '0001.user.md'), 'utf-8');
-			expect(userMsgContent).toBe(TEST_MESSAGE);
+		// User message
+		const userMsgContent = await readFile(join(sessionDir, '0001.user.md'), 'utf-8');
+		expect(userMsgContent).toBe(TEST_MESSAGE);
 
-			// Assistant message
-			const assistantMsgContent = await readFile(join(sessionDir, '0002.assistant.md'), 'utf-8');
-			expect(assistantMsgContent.length).toBeGreaterThan(0);
+		// Assistant message
+		const assistantMsgContent = await readFile(join(sessionDir, '0002.assistant.md'), 'utf-8');
+		expect(assistantMsgContent.length).toBeGreaterThan(0);
 
-			// Trace log
-			const traceContent = await readFile(join(sessionDir, 'trace.jsonl'), 'utf-8');
-			const traceLines = traceContent.trim().split('\n');
-			expect(traceLines.length).toBeGreaterThanOrEqual(2); // at least enter and leave
+		// Trace log
+		const traceContent = await readFile(join(sessionDir, 'trace.jsonl'), 'utf-8');
+		const traceLines = traceContent.trim().split('\n');
+		expect(traceLines.length).toBeGreaterThanOrEqual(2); // at least enter and leave
 
-			const firstTrace = JSON.parse(traceLines[0]);
-			expect(firstTrace).toHaveProperty('ts');
-			expect(firstTrace).toHaveProperty('node');
-			expect(firstTrace).toHaveProperty('event', 'enter');
-		}
+		const firstTrace = JSON.parse(traceLines[0]);
+		expect(firstTrace).toHaveProperty('ts');
+		expect(firstTrace).toHaveProperty('node');
+		expect(firstTrace).toHaveProperty('event', 'enter');
 	});
 });

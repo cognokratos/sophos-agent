@@ -3,6 +3,7 @@ import { rm, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const LOG_DIR = 'data/logs';
+const TEST_MESSAGE = 'Get the content from https://httpbin.org/get';
 
 test.describe('Tool Call Persistence', () => {
 	let conversationId: string | null = null;
@@ -26,19 +27,48 @@ test.describe('Tool Call Persistence', () => {
 	});
 
 	test('should record tool calls in both trace.jsonl and markdown files', async ({ page }) => {
-		// Send a message that will trigger a tool call (fetch URL)
-		await page.getByTestId('chat-input').fill('Get the content from https://httpbin.org/get');
+		// 1. Send a message that will trigger a tool call (fetch URL)
+		await page.getByTestId('chat-input').fill(TEST_MESSAGE);
 		await page.getByTestId('send-button').click();
 
 		// Wait for the response to complete
-		await expect(page.getByTestId('status-responding')).not.toBeVisible({
-			timeout: 30000
+		const chatResponse = await page.waitForResponse((r) => {
+			return r.request().method() === 'POST' && r.url().includes('/api/chat') && r.ok();
 		});
+		const { conv } = await chatResponse.json();
 
-		// Get the conversation ID
-		conversationId = await page.evaluate(() => localStorage.getItem('chat:conv'));
+		expect(conv).toBeTruthy();
+		conversationId = conv;
 		expect(conversationId).not.toBeNull();
 
+		// 2. Verify the reasoning trace UI appears and populates
+		// <summary>Reasoning Trace</summary>
+		const traceSummary = page.getByTestId('reasoning-summary');
+
+		await expect(traceSummary).toBeVisible({
+			timeout: 30_000
+		});
+
+		await traceSummary.click();
+
+		// Wait for the trace container to become visible
+		const trace = page.getByTestId('reasoning-trace');
+		await expect(trace).toBeVisible();
+		// Check for specific events inside the scoped trace container
+		await expect(trace).toContainText('ENTER');
+		await expect(trace).toContainText('agent');
+
+		// 3. Wait for the response to complete
+		// Status text "Responding..." should disappear once the response is done.
+		await expect(page.getByTestId('status-responding')).not.toBeVisible({
+			timeout: 50_000
+		});
+
+		await expect(trace).toContainText('tools');
+		await expect(trace).toContainText('TOOL_RESULT');
+		await expect(trace).toContainText('LEAVE');
+
+		// 4. Verify log files were created
 		const sessionDir = join(LOG_DIR, conversationId!);
 		const files = await readdir(sessionDir);
 
@@ -47,56 +77,47 @@ test.describe('Tool Call Persistence', () => {
 		expect(files).toContain('0002.assistant.md');
 		expect(files).toContain('trace.jsonl');
 
-		// Read the trace file to verify tool call events
+		// 5. Verify file contents
+
+		// User message
+		const userMsgContent = await readFile(join(sessionDir, '0001.user.md'), 'utf-8');
+		expect(userMsgContent).toBe(TEST_MESSAGE);
+
+		// Trace log
 		const traceContent = await readFile(join(sessionDir, 'trace.jsonl'), 'utf-8');
-		const traceLines = traceContent.trim().split('\n');
+		const traceEntries = traceContent
+			.trim()
+			.split('\n')
+			.filter((line) => line.trim() !== '')
+			.map((line) => JSON.parse(line));
+		expect(traceEntries.length).toBe(7);
 
-		// Filter for tool call events
-		const toolCallEvents = traceLines
-			.filter(line => line.trim() !== '')
-			.map(line => JSON.parse(line))
-			.filter(event => event.event === 'tool_call' || event.event === 'tool_result');
+		expect(traceEntries[0]['node']).toBe('agent');
+		expect(traceEntries[0]['event']).toBe('enter');
+		expect(traceEntries[1]['node']).toBe('agent');
+		expect(traceEntries[1]['event']).toBe('leave');
+		expect(traceEntries[2]['node']).toBe('tools');
+		expect(traceEntries[2]['event']).toBe('enter');
+		expect(traceEntries[3]['node']).toBe('tools');
+		expect(traceEntries[3]['event']).toBe('tool_result');
+		expect(traceEntries[4]['node']).toBe('tools');
+		expect(traceEntries[4]['event']).toBe('leave');
+		expect(traceEntries[5]['node']).toBe('agent');
+		expect(traceEntries[5]['event']).toBe('enter');
+		expect(traceEntries[6]['node']).toBe('agent');
+		expect(traceEntries[6]['event']).toBe('leave');
 
-		// Verify that we have tool call and result events
-		expect(toolCallEvents.length).toBeGreaterThan(0);
-		
-		// Check that we have both tool_call and tool_result events
-		const hasToolCall = toolCallEvents.some(event => event.event === 'tool_call');
-		const hasToolResult = toolCallEvents.some(event => event.event === 'tool_result');
-		expect(hasToolCall).toBe(true);
-		expect(hasToolResult).toBe(true);
-
-		// For tool_call events, verify they contain name, arguments, and tool_call_id
-		const toolCallEventsWithDetails = toolCallEvents.filter(event => event.event === 'tool_call');
-		for (const event of toolCallEventsWithDetails) {
-			expect(event).toHaveProperty('data');
-			expect(event.data).toHaveProperty('name');
-			expect(event.data).toHaveProperty('arguments');
-			expect(event.data).toHaveProperty('tool_call_id');
-		}
-
-		// For tool_result events, verify they contain name, result, and tool_call_id
-		const toolResultEventsWithDetails = toolCallEvents.filter(event => event.event === 'tool_result');
-		for (const event of toolResultEventsWithDetails) {
-			expect(event).toHaveProperty('data');
-			expect(event.data).toHaveProperty('name');
-			expect(event.data).toHaveProperty('result');
-			expect(event.data).toHaveProperty('tool_call_id');
-		}
+		const entry = traceEntries[3];
+		expect(entry).toHaveProperty('data');
+		expect(entry.data).toHaveProperty('name');
+		expect(entry.data).toHaveProperty('result');
+		expect(entry.data).toHaveProperty('tool_call_id');
+		expect(entry.data.name).toBe('fetch');
 
 		// Read the assistant message markdown to verify tool call information is included
 		const assistantMsgContent = await readFile(join(sessionDir, '0002.assistant.md'), 'utf-8');
-		
+
 		// Verify that the markdown file contains tool call information
-		expect(assistantMsgContent).toContain('TOOL CALL:');
-		expect(assistantMsgContent).toContain('TOOL RESULT:');
-		expect(assistantMsgContent).toContain('```json');
-		
-		// Verify that the tool call and result information is included in the markdown
-		const hasToolCallInMarkdown = assistantMsgContent.includes('TOOL CALL:') || assistantMsgContent.includes('<!-- TOOL CALL:');
-		const hasToolResultInMarkdown = assistantMsgContent.includes('TOOL RESULT:') || assistantMsgContent.includes('<!-- TOOL RESULT:');
-		
-		expect(hasToolCallInMarkdown).toBe(true);
-		expect(hasToolResultInMarkdown).toBe(true);
+		expect(assistantMsgContent).toContain('<!-- TOOL RESULT: fetch -->');
 	});
 });

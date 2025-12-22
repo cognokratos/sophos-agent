@@ -70,7 +70,8 @@ test.describe('MCP Examples Test', () => {
 
 		// The assistant reply should contain something from httpbin's response
 		// (e.g. the string "httpbin"). Playwright will auto-wait for this.
-		await expectLastAssistantReplyContains(page, 'httpbin', 1);
+		await expectLastAssistantReplyContains(page, '"Host": "httpbin.org"', 1);
+		await expectLastAssistantReplyContains(page, '"url": "https://httpbin.org/get"', 1);
 
 		// Now open the trace and ensure tool activity is visible
 		await expandTraceAndExpectToolCall(page);
