@@ -44,10 +44,10 @@ With the basic chat functionality in place, users need the ability to manage the
 
 ## Risks & Mitigations
 
-| Risk | Mitigation |
-|------|-------------|
-| Performance issues when loading a large number of conversations. | Implement pagination or lazy loading for the conversation list. |
-| UI complexity in managing conversation state. | Design a clear and intuitive state management model for the frontend. |
+| Risk                                                             | Mitigation                                                            |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Performance issues when loading a large number of conversations. | Implement pagination or lazy loading for the conversation list.       |
+| UI complexity in managing conversation state.                    | Design a clear and intuitive state management model for the frontend. |
 
 ---
 
@@ -64,26 +64,29 @@ With the basic chat functionality in place, users need the ability to manage the
 
 ## Success Metrics
 
-| Metric | Target |
-|---------|--------|
-| **User Task Success Rate** | >95% of users can successfully create, browse, and resume a conversation. |
-| **User Satisfaction** | High satisfaction reported in user feedback regarding conversation management. |
+| Metric                     | Target                                                                         |
+| -------------------------- | ------------------------------------------------------------------------------ |
+| **User Task Success Rate** | >95% of users can successfully create, browse, and resume a conversation.      |
+| **User Satisfaction**      | High satisfaction reported in user feedback regarding conversation management. |
 
 ---
 
 ## Stories
 
 ### Story 3.1 — Load Conversation History
+
 **As a** user,
 **I want** the chat application to automatically load my previous conversation when I open it,
 **so that** I can immediately resume where I left off without interruption.
 
 ### Story 3.2 — Create a New Conversation
+
 **As a** user,
 **I want** to be able to start a new conversation at any time,
 **so that** I can discuss a new topic without mixing it with my previous chat history.
 
 ### Story 3.3 — Browse and Resume Conversations
+
 **As a** user,
 **I want** to see a list of my past conversations and be able to select one to continue,
 **so that** I can easily switch between different topics or review previous discussions.
