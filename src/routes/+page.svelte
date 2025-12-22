@@ -133,7 +133,7 @@
 		const lastMessage = messages.at(-1);
 		if (!lastMessage || lastMessage.role !== 'assistant') {
 			console.log('startSse: Adding new assistant message placeholder.');
-			messages.push({ id: crypto.randomUUID(), role: 'assistant', content: '' });
+			messages.push({ id: `assistant_${sessionId}`, role: 'assistant', content: '' });
 		}
 
 		eventSource.onopen = () => {
@@ -198,7 +198,6 @@
 		input = '';
 
 		console.log(`handleSubmit: Submitting message: "${userMessageText}" for conv: ${conv}`);
-		messages.push({ id: crypto.randomUUID(), role: 'user', content: userMessageText });
 
 		const controller = new AbortController();
 		const timeoutId = setTimeout(() => {
@@ -249,6 +248,8 @@
 			console.log('handleSubmit: POST /api/chat successful, data:', data);
 			conv = data.conv;
 			session = data.session;
+			messages.push({ id: `user_${session}`, role: 'user', content: userMessageText });
+
 			persistState();
 			startSse(data.session);
 		} catch (e) {
@@ -285,7 +286,8 @@
 						>
 							<p
 								class="font-sans whitespace-pre-wrap"
-								data-testid={message.role === 'user' ? 'user-message' : 'assistant-message'}>
+								data-testid={message.role === 'user' ? 'user-message' : 'assistant-message'}
+							>
 								{message.content.trim().replaceAll('<br>', '\n')}
 							</p>
 						</div>

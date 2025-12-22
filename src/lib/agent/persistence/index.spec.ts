@@ -22,7 +22,13 @@ describe('Persistence Module', () => {
 	it('should write a user message to a markdown file', async () => {
 		const sessionId = 'test-session-1';
 		const turn = 1;
-		const message: ChatMessage = { role: 'user', content: 'Hello, world!' };
+		const message: ChatMessage = {
+			conv: '',
+			session: '',
+			id: 'e850c9ab-7ffa-4eef-b503-5db0481b57e5',
+			role: 'user',
+			content: 'Hello, world!'
+		};
 
 		await writeMessageFile(sessionId, turn, message);
 
@@ -35,7 +41,13 @@ describe('Persistence Module', () => {
 	it('should write an assistant message with correct padding', async () => {
 		const sessionId = 'test-session-2';
 		const turn = 12;
-		const message: ChatMessage = { role: 'assistant', content: 'Hi there!' };
+		const message: ChatMessage = {
+			conv: '',
+			session: '',
+			id: 'e850c9ab-7ffa-4eef-b503-5db0481b57e5',
+			role: 'assistant',
+			content: 'Hi there!'
+		};
 
 		await writeMessageFile(sessionId, turn, message);
 
@@ -43,6 +55,38 @@ describe('Persistence Module', () => {
 		const fileContent = await readFile(filePath, 'utf-8');
 
 		expect(fileContent).toBe('Hi there!');
+	});
+
+	it('should write a message with tool call information to markdown', async () => {
+		const sessionId = 'test-session-3';
+		const turn = 5;
+		const message: ChatMessage = {
+			conv: '',
+			session: '',
+			id: 'e850c9ab-7ffa-4eef-b503-5db0481b57e5',
+			role: 'assistant',
+			content: 'I will fetch the data for you.'
+		};
+		const toolCalls: TraceNote[] = [
+			{
+				node: 'tools',
+				event: 'tool_call',
+				data: {
+					name: 'fetch_url',
+					arguments: { url: 'https://example.com' },
+					tool_call_id: 'call_abc123'
+				}
+			}
+		];
+
+		await writeMessageFile(sessionId, turn, message, toolCalls);
+
+		const filePath = join(TEST_LOG_DIR, sessionId, '0005.assistant.md');
+		const fileContent = await readFile(filePath, 'utf-8');
+
+		expect(fileContent).toContain('I will fetch the data for you.');
+		expect(fileContent).toContain('TOOL CALL: fetch_url');
+		expect(fileContent).toContain('https://example.com');
 	});
 
 	it('should append a trace note to trace.jsonl', async () => {

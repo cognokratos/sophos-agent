@@ -1,25 +1,38 @@
 import { env } from '$env/dynamic/private';
 import { ChatOllama, type ChatOllamaCallOptions } from '@langchain/ollama';
 import { type AIMessageChunk, type BaseMessage } from '@langchain/core/messages';
-import { AIMessage, HumanMessage } from '@langchain/core/messages';
-import { END, MessagesZodMeta, START, StateGraph } from '@langchain/langgraph';
-import { registry } from '@langchain/langgraph/zod';
-import * as z from 'zod';
+import { AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
+import {
+	StateGraph,
+	START,
+	END,
+	MessagesAnnotation,
+	Annotation,
+	type Messages
+} from '@langchain/langgraph';
 import type { AgentEvent } from '$lib/chat';
 import { getMCPClientService } from './mcp/client';
 import type { BaseLanguageModelInput } from '@langchain/core/language_models/base';
 import { type Runnable } from '@langchain/core/runnables';
 import { ToolNode } from '@langchain/langgraph/prebuilt';
+import type { CompiledStateGraph } from '@langchain/langgraph';
 
-const MessagesStateSchema = z.object({
-	messages: z
-		.array(z.custom<BaseMessage>())
-		// @ts-expect-error see LangGraph docs
-		.register(registry, MessagesZodMeta),
-	modelCalls: z.number().optional()
-});
-type MessagesState = z.infer<typeof MessagesStateSchema>;
 type OllamaAgent = Runnable<BaseLanguageModelInput, AIMessageChunk, ChatOllamaCallOptions>;
+const MessagesStateSchema = Annotation.Root({
+	...MessagesAnnotation.spec,
+	modelCalls: Annotation<number>({
+		reducer: (x, y) => x + y,
+		default: () => 0
+	})
+});
+type MessagesState = typeof MessagesStateSchema.State;
+type InState = { messages: BaseMessage[]; modelCalls: number };
+type OutState = { messages?: Messages | undefined; modelCalls?: number | undefined };
+const nodes = {
+	AGENT: 'agent',
+	TOOLS: 'tools'
+};
+type Edges = typeof START | typeof END | typeof nodes.AGENT | typeof nodes.TOOLS;
 
 export function agentNode(agent: OllamaAgent) {
 	return async function (state: MessagesState) {
@@ -28,7 +41,7 @@ export function agentNode(agent: OllamaAgent) {
 			const response = await agent.invoke(messages);
 			return {
 				messages: [response],
-				modelCalls: (state.modelCalls ?? 0) + 1
+				modelCalls: 1
 			};
 		} catch (error: unknown) {
 			if (error instanceof Error && error.message.includes('model not found')) {
@@ -41,10 +54,12 @@ export function agentNode(agent: OllamaAgent) {
 
 async function shouldContinue(state: MessagesState) {
 	const lastMessage = state.messages.at(-1);
-	if (lastMessage == null || !AIMessage.isInstance(lastMessage)) return END;
+	if (!lastMessage || !AIMessage.isInstance(lastMessage)) {
+		return END;
+	}
 
 	if (lastMessage.tool_calls?.length) {
-		return 'tools';
+		return nodes.TOOLS;
 	}
 
 	return END;
@@ -64,22 +79,25 @@ async function initGraph() {
 	const tools = await client.getTools();
 	const agent = model.bindTools(tools);
 
-	const workflow = new StateGraph(MessagesStateSchema)
-		.addNode('agent', agentNode(agent))
-		.addNode('tools', new ToolNode(tools))
-		.addEdge(START, 'agent')
-		.addEdge('tools', 'agent')
-		.addConditionalEdges('agent', shouldContinue);
+	const stateGraph = new StateGraph(MessagesStateSchema)
+		.addNode(nodes.AGENT, agentNode(agent))
+		.addNode(nodes.TOOLS, new ToolNode(tools))
+		.addEdge(START, nodes.AGENT)
+		.addConditionalEdges(nodes.AGENT, shouldContinue)
+		.addEdge(nodes.TOOLS, nodes.AGENT);
 
-	return workflow.compile();
+	return stateGraph.compile();
 }
 
-const graph = await initGraph();
+let graph: CompiledStateGraph<InState, OutState, Edges> | null = null;
 
 export async function* runAgent(message: string): AsyncGenerator<AgentEvent> {
+	if (!graph) {
+		graph = await initGraph();
+	}
 	const stream = await graph.stream(
 		{ messages: [new HumanMessage(message)] },
-		{ streamMode: 'messages' }
+		{ streamMode: 'messages', interruptBefore: [] }
 	);
 
 	let currentStep = -1;
@@ -101,23 +119,48 @@ export async function* runAgent(message: string): AsyncGenerator<AgentEvent> {
 			yield { type: 'trace', data: { node: nodeName, event: 'enter' } };
 		}
 
-		if (nodeName === 'agent' && msg.content) {
-			yield {
-				type: 'token',
-				data: msg.content.toString()
-			};
+		if (nodeName === nodes.AGENT && AIMessage.isInstance(msg)) {
+			if (msg.content) {
+				yield {
+					type: 'token',
+					data: msg.content.toString()
+				};
+			}
+			if (msg.tool_calls?.length) {
+				console.log(msg);
+				for (const toolCall of msg.tool_calls) {
+					yield {
+						type: 'trace',
+						data: {
+							node: 'tools',
+							event: 'tool_call',
+							data: {
+								name: toolCall.name,
+								arguments: toolCall.args,
+								tool_call_id: toolCall.id
+							}
+						}
+					};
+				}
+			}
 		}
 
-		if (nodeName === 'tools' && msg.name) {
-			console.log(meta, msg);
-			yield {
-				type: 'trace',
-				data: {
-					node: 'tools',
-					event: 'tool',
-					data: { name: msg.name }
-				}
-			};
+		if (nodeName === nodes.TOOLS && ToolMessage.isInstance(msg)) {
+			if (msg.name && msg.tool_call_id) {
+				console.log(msg);
+				yield {
+					type: 'trace',
+					data: {
+						node: 'tools',
+						event: 'tool_result',
+						data: {
+							name: msg.name,
+							tool_call_id: msg.tool_call_id,
+							result: msg.content
+						}
+					}
+				};
+			}
 		}
 	}
 

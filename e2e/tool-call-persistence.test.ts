@@ -3,9 +3,9 @@ import { rm, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const LOG_DIR = 'data/logs';
-const TEST_MESSAGE = 'Hello, this is an E2E test.';
+const TEST_MESSAGE = 'Get the content from https://httpbin.org/get';
 
-test.describe('Reasoning Trace & Persistence', () => {
+test.describe('Tool Call Persistence', () => {
 	let conversationId: string | null = null;
 
 	test.beforeEach(async ({ page }) => {
@@ -26,8 +26,8 @@ test.describe('Reasoning Trace & Persistence', () => {
 		}
 	});
 
-	test('should display real-time reasoning trace and create log files', async ({ page }) => {
-		// 1. Send a message
+	test('should record tool calls in both trace.jsonl and markdown files', async ({ page }) => {
+		// 1. Send a message that will trigger a tool call (fetch URL)
 		await page.getByTestId('chat-input').fill(TEST_MESSAGE);
 		await page.getByTestId('send-button').click();
 
@@ -57,13 +57,16 @@ test.describe('Reasoning Trace & Persistence', () => {
 		// Check for specific events inside the scoped trace container
 		await expect(trace).toContainText('ENTER');
 		await expect(trace).toContainText('agent');
-		await expect(trace).toContainText('LEAVE');
 
 		// 3. Wait for the response to complete
 		// Status text "Responding..." should disappear once the response is done.
 		await expect(page.getByTestId('status-responding')).not.toBeVisible({
-			timeout: 50_000
+			timeout: 300_000
 		});
+
+		await expect(trace).toContainText('tools');
+		await expect(trace).toContainText('TOOL_RESULT');
+		await expect(trace).toContainText('LEAVE');
 
 		// 4. Verify log files were created
 		const sessionDir = join(LOG_DIR, conversationId!);
@@ -80,18 +83,41 @@ test.describe('Reasoning Trace & Persistence', () => {
 		const userMsgContent = await readFile(join(sessionDir, '0001.user.md'), 'utf-8');
 		expect(userMsgContent).toBe(TEST_MESSAGE);
 
-		// Assistant message
-		const assistantMsgContent = await readFile(join(sessionDir, '0002.assistant.md'), 'utf-8');
-		expect(assistantMsgContent.length).toBeGreaterThan(0);
-
 		// Trace log
 		const traceContent = await readFile(join(sessionDir, 'trace.jsonl'), 'utf-8');
-		const traceLines = traceContent.trim().split('\n');
-		expect(traceLines.length).toBeGreaterThanOrEqual(2); // at least enter and leave
+		const traceEntries = traceContent
+			.trim()
+			.split('\n')
+			.filter((line) => line.trim() !== '')
+			.map((line) => JSON.parse(line));
+		expect(traceEntries.length).toBe(7);
 
-		const firstTrace = JSON.parse(traceLines[0]);
-		expect(firstTrace).toHaveProperty('ts');
-		expect(firstTrace).toHaveProperty('node');
-		expect(firstTrace).toHaveProperty('event', 'enter');
+		expect(traceEntries[0]['node']).toBe('agent');
+		expect(traceEntries[0]['event']).toBe('enter');
+		expect(traceEntries[1]['node']).toBe('agent');
+		expect(traceEntries[1]['event']).toBe('leave');
+		expect(traceEntries[2]['node']).toBe('tools');
+		expect(traceEntries[2]['event']).toBe('enter');
+		expect(traceEntries[3]['node']).toBe('tools');
+		expect(traceEntries[3]['event']).toBe('tool_result');
+		expect(traceEntries[4]['node']).toBe('tools');
+		expect(traceEntries[4]['event']).toBe('leave');
+		expect(traceEntries[5]['node']).toBe('agent');
+		expect(traceEntries[5]['event']).toBe('enter');
+		expect(traceEntries[6]['node']).toBe('agent');
+		expect(traceEntries[6]['event']).toBe('leave');
+
+		const entry = traceEntries[3];
+		expect(entry).toHaveProperty('data');
+		expect(entry.data).toHaveProperty('name');
+		expect(entry.data).toHaveProperty('result');
+		expect(entry.data).toHaveProperty('tool_call_id');
+		expect(entry.data.name).toBe('fetch');
+
+		// Read the assistant message markdown to verify tool call information is included
+		const assistantMsgContent = await readFile(join(sessionDir, '0002.assistant.md'), 'utf-8');
+
+		// Verify that the markdown file contains tool call information
+		expect(assistantMsgContent).toContain('<!-- TOOL RESULT: fetch -->');
 	});
 });

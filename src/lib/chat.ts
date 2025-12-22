@@ -1,6 +1,11 @@
+import type { UUID } from 'crypto';
+
 export type ChatRole = 'user' | 'assistant' | 'system' | 'tool';
 
 export interface ChatMessage {
+	id: UUID;
+	conv: string;
+	session: string;
 	role: ChatRole;
 	content: string;
 }
@@ -12,7 +17,7 @@ export interface ChatRequest {
 
 export interface TraceNote {
 	node: string;
-	event: 'enter' | 'tool' | 'leave' | 'stream' | 'error';
+	event: 'enter' | 'leave' | 'stream' | 'error' | 'tool' | 'tool_call' | 'tool_result';
 	data?: Record<string, unknown>;
 }
 
