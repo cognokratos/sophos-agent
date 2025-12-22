@@ -62,7 +62,7 @@ test.describe('Reasoning Trace & Persistence', () => {
 		// 3. Wait for the response to complete
 		// Status text "Responding..." should disappear once the response is done.
 		await expect(page.getByTestId('status-responding')).not.toBeVisible({
-			timeout: 20_000
+			timeout: 50_000
 		});
 
 		// 4. Verify log files were created

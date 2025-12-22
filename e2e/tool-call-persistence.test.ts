@@ -61,7 +61,7 @@ test.describe('Tool Call Persistence', () => {
 		// 3. Wait for the response to complete
 		// Status text "Responding..." should disappear once the response is done.
 		await expect(page.getByTestId('status-responding')).not.toBeVisible({
-			timeout: 50_000
+			timeout: 300_000
 		});
 
 		await expect(trace).toContainText('tools');

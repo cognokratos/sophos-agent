@@ -1,6 +1,11 @@
+import type { UUID } from 'crypto';
+
 export type ChatRole = 'user' | 'assistant' | 'system' | 'tool';
 
 export interface ChatMessage {
+	id: UUID;
+	conv: string;
+	session: string;
 	role: ChatRole;
 	content: string;
 }

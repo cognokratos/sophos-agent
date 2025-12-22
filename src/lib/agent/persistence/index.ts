@@ -63,9 +63,7 @@ export async function writeMessageFile(
 	let content = message.content;
 	if (toolCalls && toolCalls.length > 0) {
 		try {
-			const toolCallMarkdown = toolCalls
-				.map(traceNote => formatToolCall(traceNote))
-				.join('\n');
+			const toolCallMarkdown = toolCalls.map((traceNote) => formatToolCall(traceNote)).join('\n');
 			content += toolCallMarkdown;
 		} catch (error) {
 			console.error('Error formatting tool calls for markdown:', error);

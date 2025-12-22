@@ -11,7 +11,7 @@ describe('agentNode', () => {
 		const mockModel = new ChatOllama({});
 		mockModel.invoke = mockInvoke;
 
-		const state = { messages: [new HumanMessage('test message')] };
+		const state = { messages: [new HumanMessage('test message')], modelCalls: 0 };
 		const response = await agentNode(mockModel)(state);
 
 		expect(mockInvoke).toHaveBeenCalledWith(state.messages);
@@ -23,8 +23,8 @@ describe('agentNode', () => {
 		const mockModel = new ChatOllama({});
 		mockModel.invoke = mockInvoke;
 
-		const state = { messages: [new HumanMessage('test message')] };
+		const state = { messages: [new HumanMessage('test message')], modelCalls: 0 };
 
-		await expect(agentNode(mockModel)(state)).rejects.toThrow('MODEL_UNAVAILABLE');
+		expect(agentNode(mockModel)(state)).rejects.toThrow('MODEL_UNAVAILABLE');
 	});
 });

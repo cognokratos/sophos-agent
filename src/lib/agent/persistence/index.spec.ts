@@ -22,7 +22,13 @@ describe('Persistence Module', () => {
 	it('should write a user message to a markdown file', async () => {
 		const sessionId = 'test-session-1';
 		const turn = 1;
-		const message: ChatMessage = { role: 'user', content: 'Hello, world!' };
+		const message: ChatMessage = {
+			conv: '',
+			session: '',
+			id: 'e850c9ab-7ffa-4eef-b503-5db0481b57e5',
+			role: 'user',
+			content: 'Hello, world!'
+		};
 
 		await writeMessageFile(sessionId, turn, message);
 
@@ -35,7 +41,13 @@ describe('Persistence Module', () => {
 	it('should write an assistant message with correct padding', async () => {
 		const sessionId = 'test-session-2';
 		const turn = 12;
-		const message: ChatMessage = { role: 'assistant', content: 'Hi there!' };
+		const message: ChatMessage = {
+			conv: '',
+			session: '',
+			id: 'e850c9ab-7ffa-4eef-b503-5db0481b57e5',
+			role: 'assistant',
+			content: 'Hi there!'
+		};
 
 		await writeMessageFile(sessionId, turn, message);
 
@@ -48,7 +60,13 @@ describe('Persistence Module', () => {
 	it('should write a message with tool call information to markdown', async () => {
 		const sessionId = 'test-session-3';
 		const turn = 5;
-		const message: ChatMessage = { role: 'assistant', content: 'I will fetch the data for you.' };
+		const message: ChatMessage = {
+			conv: '',
+			session: '',
+			id: 'e850c9ab-7ffa-4eef-b503-5db0481b57e5',
+			role: 'assistant',
+			content: 'I will fetch the data for you.'
+		};
 		const toolCalls: TraceNote[] = [
 			{
 				node: 'tools',

@@ -52,3 +52,13 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
+  mcp-inspector:
+    image: ghcr.io/modelcontextprotocol/inspector:latest
+    restart: unless-stopped
+    ports:
+      - '6274:6274' # Inspector UI
+      - '6277:6277' # MCP Proxy
+    environment:
+      - HOST=0.0.0.0
+      - ALLOWED_ORIGINS=http://0.0.0.0:6274

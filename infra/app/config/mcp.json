@@ -1,0 +1,8 @@
+{
+	"memory": {
+		"url": "http://mcp-memory:8080/mcp"
+	},
+	"fetch": {
+		"url": "http://mcp-fetch:8080/mcp"
+	}
+}

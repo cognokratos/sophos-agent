@@ -6,6 +6,7 @@ import { runAgent } from '$lib/agent';
 import { writeMessageFile, writeTrace } from '$lib/agent/persistence';
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import type { UUID } from 'crypto';
 
 const LOG_DIR = env.LOG_DIR ?? 'data/logs';
 
@@ -52,10 +53,6 @@ export const POST: RequestHandler = async ({ request }) => {
 		}
 	}
 
-	const userMessage: ChatMessage = { role: 'user', content: message };
-	const turn = await getNextTurn(conv);
-	await writeMessageFile(conv, turn, userMessage);
-
 	const session = newId('sess');
 	const sessionObj: Session = {
 		conv,
@@ -68,9 +65,14 @@ export const POST: RequestHandler = async ({ request }) => {
 	};
 	sessions.set(session, sessionObj);
 
+	const messageId: UUID = crypto.randomUUID();
+	const userMessage: ChatMessage = { conv, session, id: messageId, role: 'user', content: message };
+	const turn = await getNextTurn(conv);
+	await writeMessageFile(conv, turn, userMessage);
+
 	startAgent(conv, session, sessionObj, userMessage);
 
-	return json({ conv, session });
+	return json({ conv, session, messageId });
 };
 
 async function getNextTurn(sessionId: string): Promise<number> {
@@ -94,7 +96,14 @@ async function startAgent(
 		sessionObj.updatedAt = Date.now();
 
 		let assistantContent = '';
-		const assistantMessage: ChatMessage = { role: 'assistant', content: '' };
+		const messageId: UUID = crypto.randomUUID();
+		const assistantMessage: ChatMessage = {
+			conv,
+			session,
+			id: messageId,
+			role: 'assistant',
+			content: ''
+		};
 		const toolCallTraces: import('$lib/chat').TraceNote[] = [];
 
 		for await (const event of runAgent(userMessage.content)) {
