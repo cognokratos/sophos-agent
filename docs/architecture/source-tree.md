@@ -76,7 +76,7 @@ sofos-agent/
 OLLAMA_HOST=http://ollama:11434
 OLLAMA_MODEL=mistral
 MCP_PROXY_API_KEY=''
-LOG_DIR=/data/logs
+CHAT_DIR=/data/chat
 AGENT_PROFILE=monolith        # or: split
 PORT=5173
 PUBLIC_MODE=false             # true => publish profile

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { rm, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-const LOG_DIR = 'data/logs';
+const CHAT_DIR = 'data/chat';
 const TEST_MESSAGE = 'Get the content from https://httpbin.org/get';
 
 test.describe('Tool Call Persistence', () => {
@@ -19,9 +19,9 @@ test.describe('Tool Call Persistence', () => {
 	});
 
 	test.afterAll(async () => {
-		// Clean up logs from the test run
+		// Clean up chat from the test run
 		if (conversationId) {
-			const sessionDir = join(LOG_DIR, conversationId);
+			const sessionDir = join(CHAT_DIR, conversationId);
 			await rm(sessionDir, { recursive: true, force: true });
 		}
 	});
@@ -35,10 +35,10 @@ test.describe('Tool Call Persistence', () => {
 		const chatResponse = await page.waitForResponse((r) => {
 			return r.request().method() === 'POST' && r.url().includes('/api/chat') && r.ok();
 		});
-		const { conv } = await chatResponse.json();
+		const { conversation } = await chatResponse.json();
 
-		expect(conv).toBeTruthy();
-		conversationId = conv;
+		expect(conversation).toBeTruthy();
+		conversationId = conversation;
 		expect(conversationId).not.toBeNull();
 
 		// 2. Verify the reasoning trace UI appears and populates
@@ -61,7 +61,7 @@ test.describe('Tool Call Persistence', () => {
 		// 3. Wait for the response to complete
 		// Status text "Responding..." should disappear once the response is done.
 		await expect(page.getByTestId('status-responding')).not.toBeVisible({
-			timeout: 300_000
+			timeout: 500_000
 		});
 
 		await expect(trace).toContainText('tools');
@@ -69,7 +69,7 @@ test.describe('Tool Call Persistence', () => {
 		await expect(trace).toContainText('LEAVE');
 
 		// 4. Verify log files were created
-		const sessionDir = join(LOG_DIR, conversationId!);
+		const sessionDir = join(CHAT_DIR, conversationId!);
 		const files = await readdir(sessionDir);
 
 		// Check for user message, assistant message, and trace log

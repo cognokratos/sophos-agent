@@ -4,7 +4,7 @@ import { env } from '$env/dynamic/private';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-const LOG_DIR = env.LOG_DIR ?? 'data/logs';
+const CHAT_DIR = env.CHAT_DIR ?? 'data/chat';
 
 interface ParsedMessage {
 	id: string;
@@ -14,9 +14,9 @@ interface ParsedMessage {
 }
 
 export const GET: RequestHandler = async ({ params }) => {
-	const { sessionId } = params;
+	const { conversationId } = params;
 
-	if (!sessionId) {
+	if (!conversationId) {
 		return json(
 			{ error: { code: 'BAD_REQUEST', message: 'Session ID is required' } },
 			{ status: 400 }
@@ -24,7 +24,7 @@ export const GET: RequestHandler = async ({ params }) => {
 	}
 
 	try {
-		const sessionDir = join(LOG_DIR, sessionId);
+		const sessionDir = join(CHAT_DIR, conversationId);
 		const files = await readdir(sessionDir);
 
 		// Filter for markdown files and sort by turn number
@@ -65,7 +65,7 @@ export const GET: RequestHandler = async ({ params }) => {
 
 		return json({ messages: messages.sort((a, b) => a.turn - b.turn) });
 	} catch (error) {
-		console.error(`Error loading conversation for session ${sessionId}:`, error);
+		console.error(`Error loading conversation for session ${conversationId}:`, error);
 		return json(
 			{ error: { code: 'LOAD_ERROR', message: 'Failed to load conversation' } },
 			{ status: 500 }

@@ -147,7 +147,6 @@ export async function* runAgent(message: string): AsyncGenerator<AgentEvent> {
 
 		if (nodeName === nodes.TOOLS && ToolMessage.isInstance(msg)) {
 			if (msg.name && msg.tool_call_id) {
-				console.log(msg);
 				yield {
 					type: 'trace',
 					data: {
