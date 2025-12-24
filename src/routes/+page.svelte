@@ -268,11 +268,45 @@
 			input = originalInput; // Restore input on error
 		}
 	}
+
+	async function startNewConversation() {
+		console.log('startNewConversation: Initiating new conversation...');
+
+		// Close any existing SSE connection
+		if (eventSource) {
+			console.log('startNewConversation: Closing existing SSE connection.');
+			eventSource.close();
+			eventSource = null;
+		}
+
+		// Clear the current chat state
+		messages = [];
+		traceNotes = [];
+		input = '';
+		error = null;
+		isStreaming = false;
+		isSseStarting = false;
+
+		// Reset conversation to null to indicate a new, unsaved conversation
+		conversation = null;
+
+		console.log('startNewConversation: Conversation state reset. Ready for new conversation.');
+	}
 </script>
 
 <div class="flex h-screen flex-col bg-gray-900 text-white">
 	<header class="bg-gray-800 p-4 shadow-md">
-		<h1 class="text-2xl font-bold">Sophos Agent</h1>
+		<div class="flex justify-between items-center">
+			<h1 class="text-2xl font-bold">Sophos Agent</h1>
+			<button
+				onclick={startNewConversation}
+				class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+				aria-label="Start new conversation"
+				data-testid="new-chat-button"
+			>
+				New Chat
+			</button>
+		</div>
 		<p data-testid="conversation-id">{conversation ?? 'New conversation'}</p>
 	</header>
 

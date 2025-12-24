@@ -1,5 +1,6 @@
 import { env } from '$env/dynamic/private';
 import { type MCPServers, parseMcpServers } from '$lib/agent/mcp/config/parser';
+import path from 'node:path';
 
 /**
  * Loads MCP server configurations from a config file
@@ -29,5 +30,12 @@ function getConfigFile() {
 }
 
 function getMemoryFilePath() {
-	return env.MCP_MEMORY_FILE_PATH ?? '/tmp/data/memory/memory.jsonl';
+	const filePath = env.MCP_MEMORY_FILE_PATH;
+	if (!filePath) {
+		return '/tmp/data/memory/memory.jsonl';
+	}
+	if (path.isAbsolute(filePath)) {
+		return filePath;
+	}
+	return path.resolve(process.cwd(), filePath);
 }

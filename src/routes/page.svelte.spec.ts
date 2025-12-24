@@ -10,4 +10,19 @@ describe('/+page.svelte', () => {
 		const heading = page.getByRole('heading', { level: 1 });
 		await expect.element(heading).toBeInTheDocument();
 	});
+
+	it('should render new chat button', async () => {
+		render(Page);
+
+		const newChatButton = page.getByTestId('new-chat-button');
+		await expect.element(newChatButton).toBeInTheDocument();
+		expect(newChatButton).toHaveTextContent('New Chat');
+	});
+
+	it('should have correct accessibility attributes for new chat button', async () => {
+		render(Page);
+
+		const newChatButton = page.getByTestId('new-chat-button');
+		await expect.element(newChatButton).toHaveAttribute('aria-label', 'Start new conversation');
+	});
 });
