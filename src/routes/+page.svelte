@@ -3,6 +3,7 @@
 	import { safeJsonParse, parseUuid } from '$lib/utils';
 	import { type TraceNote, formatTraceNote } from '$lib/chat';
 	import type { UUID } from 'crypto';
+	import ConversationList from '$lib/components/ConversationList.svelte';
 
 	// --- Types ---
 	type Msg = {
@@ -10,6 +11,13 @@
 		role: 'user' | 'assistant';
 		content: string;
 	};
+
+	interface ConversationMetadata {
+		id: string; // Using string since conversation IDs might not be UUIDs
+		title: string;
+		updatedAt: Date;
+		messageCount: number;
+	}
 
 	// --- State ---
 	let messages = $state<Msg[]>([]);
@@ -20,10 +28,12 @@
 	let conversation = $state<UUID | null>(null);
 	let isStreaming = $state(false);
 	let isLoadingHistory = $state(false);
+	let conversations = $state<ConversationMetadata[]>([]);
+	let isLoadingConversations = $state(false);
 
 	let eventSource: EventSource | null = null;
 	let chatContainer: HTMLElement;
-	let isSseStarting = false;
+	let isSseStarting = $state(false);
 	let initialized = false;
 
 	// --- Derived state ---
@@ -35,6 +45,7 @@
 		initialized = true;
 
 		console.log('Effect: Component mounted. Loading conversation history.');
+		loadConversations();
 		loadConversationHistory();
 
 		return () => {
@@ -50,6 +61,34 @@
 		}
 	});
 
+	// --- Load conversation list ---
+	async function loadConversations() {
+		if (!browser) return;
+
+		console.log('loadConversations: Attempting to load conversation list...');
+		isLoadingConversations = true;
+
+		try {
+			const response = await fetch('/api/conversations');
+			if (!response.ok) {
+				throw new Error(`Failed to get conversations: ${response.status}`);
+			}
+
+			const { conversations: convList } = await response.json();
+			conversations = convList.map((conv: any) => ({
+				...conv,
+				updatedAt: new Date(conv.updatedAt)
+			}));
+
+			console.log(`loadConversations: Loaded ${conversations.length} conversations`);
+		} catch (err) {
+			console.error('loadConversations: Error loading conversations:', err);
+			error = { code: 'LOAD_CONVERSATIONS_ERROR', message: 'Failed to load conversations' };
+		} finally {
+			isLoadingConversations = false;
+		}
+	}
+
 	// --- Load conversation history ---
 	async function loadConversationHistory() {
 		if (!browser) return;
@@ -64,14 +103,15 @@
 				throw new Error(`Failed to get recent conversation: ${recentResponse.status}`);
 			}
 
-			const { conversationId } = await recentResponse.json();
+			const { conversations: convList } = await recentResponse.json();
+			const mostRecent = convList.length > 0 ? convList[0] : null;
 
-			if (conversationId) {
-				console.log(`loadConversationHistory: Found recent conversation: ${conversationId}`);
+			if (mostRecent) {
+				console.log(`loadConversationHistory: Found most recent conversation: ${mostRecent.id}`);
 
 				// Load the messages from the conversation
 				const messagesResponse = await fetch(
-					`/api/conversations/${encodeURIComponent(conversationId)}`
+					`/api/conversations/${encodeURIComponent(mostRecent.id)}`
 				);
 				if (!messagesResponse.ok) {
 					throw new Error(`Failed to load conversation: ${messagesResponse.status}`);
@@ -86,7 +126,7 @@
 					content: msg.content
 				}));
 
-				conversation = parseUuid(conversationId);
+				conversation = parseUuid(mostRecent.id);
 				console.log(
 					`loadConversationHistory: Loaded ${loadedMessages.length} messages from conversation: ${conversation}`
 				);
@@ -101,6 +141,43 @@
 		} catch (err) {
 			console.error('loadConversationHistory: Error loading conversation history:', err);
 			error = { code: 'LOAD_HISTORY_ERROR', message: 'Failed to load conversation history' };
+		} finally {
+			isLoadingHistory = false;
+		}
+	}
+
+	// --- Load specific conversation ---
+	async function loadConversation(conversationId: UUID) {
+		if (!browser) return;
+
+		console.log(`loadConversation: Loading conversation: ${conversationId}`);
+		isLoadingHistory = true;
+
+		try {
+			// Load the messages from the conversation
+			const messagesResponse = await fetch(
+				`/api/conversations/${encodeURIComponent(conversationId)}`
+			);
+			if (!messagesResponse.ok) {
+				throw new Error(`Failed to load conversation: ${messagesResponse.status}`);
+			}
+
+			const { messages: loadedMessages } = await messagesResponse.json();
+
+			// Update state with loaded messages
+			messages = loadedMessages.map((msg: Msg, index: number) => ({
+				id: `message_${index}`,
+				role: msg.role,
+				content: msg.content
+			}));
+
+			conversation = parseUuid(conversationId);
+			console.log(
+				`loadConversation: Loaded ${loadedMessages.length} messages from conversation: ${conversation}`
+			);
+		} catch (err) {
+			console.error('loadConversation: Error loading conversation:', err);
+			error = { code: 'LOAD_CONVERSATION_ERROR', message: 'Failed to load conversation' };
 		} finally {
 			isLoadingHistory = false;
 		}
@@ -257,7 +334,12 @@
 			const data = await response.json();
 			console.log('handleSubmit: POST /api/chat successful, data:', data);
 			conversation = parseUuid(data.conversation);
+
+			// Add the user message to the conversation
 			messages.push({ id: `message_${messages.length}`, role: 'user', content: userMessageText });
+
+			// Update conversation list to reflect the new conversation
+			await loadConversations();
 
 			startSse(conversation);
 		} catch (e) {
@@ -290,139 +372,164 @@
 		// Reset conversation to null to indicate a new, unsaved conversation
 		conversation = null;
 
+		// Reload the conversation list to update UI
+		await loadConversations();
+
 		console.log('startNewConversation: Conversation state reset. Ready for new conversation.');
 	}
+
+	// Handle conversation selection
+	function handleConversationSelect(id: string) {
+		console.log(`handleConversationSelect: Selected conversation: ${id}`);
+		loadConversation(parseUuid(id)); // Parse to UUID for internal use
+	}
+
+	// Update conversation list when new conversation is created
+	$effect(() => {
+		if (conversation && !conversations.some(c => c.id === conversation)) {
+			// If this is a new conversation not in the list, reload the list
+			loadConversations();
+		}
+	});
 </script>
 
-<div class="flex h-screen flex-col bg-gray-900 text-white">
-	<header class="bg-gray-800 p-4 shadow-md">
-		<div class="flex justify-between items-center">
-			<h1 class="text-2xl font-bold">Sophos Agent</h1>
-			<button
-				onclick={startNewConversation}
-				class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-				aria-label="Start new conversation"
-				data-testid="new-chat-button"
-			>
-				New Chat
-			</button>
-		</div>
-		<p data-testid="conversation-id">{conversation ?? 'New conversation'}</p>
-	</header>
+<div class="flex h-screen bg-gray-900 text-white">
+	<!-- Conversation List Sidebar -->
+	<div class="w-64 bg-gray-800 border-r border-gray-700 flex flex-col">
+		<ConversationList
+			conversations={conversations}
+			currentConversation={conversation}
+			loading={isLoadingConversations}
+			onItemClick={handleConversationSelect}
+			onNewConversation={startNewConversation}
+		/>
+	</div>
 
-	<main bind:this={chatContainer} class="flex-1 overflow-y-auto p-4">
-		{#if isLoadingHistory}
-			<div class="flex h-full flex-col items-center justify-center">
-				<div class="mb-4 flex items-center justify-center space-x-2">
-					<span class="h-3 w-3 animate-pulse rounded-full bg-blue-500"></span>
-					<span class="h-3 w-3 animate-pulse rounded-full bg-blue-500 [animation-delay:0.2s]"
-					></span>
-					<span class="h-3 w-3 animate-pulse rounded-full bg-blue-500 [animation-delay:0.4s]"
-					></span>
+	<!-- Main Chat Area -->
+	<div class="flex-1 flex flex-col">
+		<header class="bg-gray-800 p-4 shadow-md">
+			<div class="flex justify-between items-center">
+				<h1 class="text-2xl font-bold">Sophos Agent</h1>
+				<div class="text-sm text-gray-400">
+					{conversation ? 'Current: ' + (conversations.find(c => c.id === conversation)?.title || conversation) : 'New conversation'}
 				</div>
-				<p class="text-gray-400">Loading your conversation history...</p>
 			</div>
-		{:else}
-			{#if error}
-				<div class="mb-4 rounded-lg bg-red-500 p-4 text-white">
-					<p class="font-bold">Error: {error.code}</p>
-					<p>{error.message}</p>
+		</header>
+
+		<main bind:this={chatContainer} class="flex-1 overflow-y-auto p-4">
+			{#if isLoadingHistory}
+				<div class="flex h-full flex-col items-center justify-center">
+					<div class="mb-4 flex items-center justify-center space-x-2">
+						<span class="h-3 w-3 animate-pulse rounded-full bg-blue-500"></span>
+						<span class="h-3 w-3 animate-pulse rounded-full bg-blue-500 [animation-delay:0.2s]"
+						></span>
+						<span class="h-3 w-3 animate-pulse rounded-full bg-blue-500 [animation-delay:0.4s]"
+						></span>
+					</div>
+					<p class="text-gray-400">Loading conversation...</p>
 				</div>
-			{/if}
-			<div class="space-y-4">
-				{#each messages as message (message.id)}
-					{#if message.content}
-						<div class={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-							<div
-								class={`w-fit max-w-5/6 rounded-lg px-4 py-2 ${
-									message.role === 'user' ? 'bg-blue-600 text-right' : 'bg-gray-700'
-								}`}
-							>
-								<p
-									class="font-sans whitespace-pre-wrap"
-									data-testid={message.role === 'user' ? 'user-message' : 'assistant-message'}
+			{:else}
+				{#if error}
+					<div class="mb-4 rounded-lg bg-red-500 p-4 text-white">
+						<p class="font-bold">Error: {error.code}</p>
+						<p>{error.message}</p>
+					</div>
+				{/if}
+				<div class="space-y-4">
+					{#each messages as message (message.id)}
+						{#if message.content}
+							<div class={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+								<div
+									class={`w-fit max-w-5/6 rounded-lg px-4 py-2 ${
+										message.role === 'user' ? 'bg-blue-600 text-right' : 'bg-gray-700'
+									}`}
 								>
-									{message.content.trim().replaceAll('<br>', '\n')}
-								</p>
+									<p
+										class="font-sans whitespace-pre-wrap"
+										data-testid={message.role === 'user' ? 'user-message' : 'assistant-message'}
+									>
+										{message.content.trim().replaceAll('<br>', '\n')}
+									</p>
+								</div>
 							</div>
-						</div>
-					{:else}
-						<div
-							class="flex w-fit items-center justify-start space-x-1 rounded-lg bg-gray-700 px-4 py-2"
-						>
-							<span class="h-2 w-2 animate-pulse rounded-full bg-blue-500"></span>
-							<span class="h-2 w-2 animate-pulse rounded-full bg-blue-500 [animation-delay:0.2s]"
-							></span>
-							<span class="h-2 w-2 animate-pulse rounded-full bg-blue-500 [animation-delay:0.4s]"
-							></span>
-						</div>
-					{/if}
-				{/each}
-			</div>
-		{/if}
-	</main>
-
-	{#if traceNotes.length > 0}
-		<div class="border-t border-gray-700 bg-gray-800 p-4">
-			<details>
-				<summary class="cursor-pointer font-bold" data-testid="reasoning-summary"
-					>Reasoning Trace</summary
-				>
-				<div class="mt-2 space-y-1 text-sm text-gray-400" data-testid="reasoning-trace">
-					{#each traceNotes as note, i (`note_${i}`)}
-						<div>
-							<span class="rounded bg-gray-700 px-1 py-0.5 font-mono text-xs"
-								>{note.event.toUpperCase()}</span
+						{:else}
+							<div
+								class="flex w-fit items-center justify-start space-x-1 rounded-lg bg-gray-700 px-4 py-2"
 							>
-							<span class="ml-2 font-semibold">{note.node}</span>
-							{#each Object.entries(note.data ?? {}) as [key, value], i (`note_entry_${key}_${i}`)}
-								{#if String(value).length < 10}
-									<span>[{key}: {value}]</span>
-								{/if}
-							{/each}
-						</div>
+								<span class="h-2 w-2 animate-pulse rounded-full bg-blue-500"></span>
+								<span class="h-2 w-2 animate-pulse rounded-full bg-blue-500 [animation-delay:0.2s]"
+								></span>
+								<span class="h-2 w-2 animate-pulse rounded-full bg-blue-500 [animation-delay:0.4s]"
+								></span>
+							</div>
+						{/if}
 					{/each}
 				</div>
-			</details>
-		</div>
-	{/if}
-
-	<footer class="bg-gray-800 p-4">
-		<form onsubmit={handleSubmit} class="flex items-center">
-			<input
-				bind:value={input}
-				type="text"
-				placeholder="Type your message..."
-				class="flex-1 rounded-l-lg bg-gray-700 p-2 focus:outline-none disabled:opacity-50"
-				disabled={isStreaming}
-				aria-label="Chat input"
-				data-testid="chat-input"
-			/>
-			{#if isStreaming}
-				<button
-					type="button"
-					onclick={stopStream}
-					class="rounded-r-lg bg-red-600 p-2 px-4 font-bold hover:bg-red-700"
-					aria-label="Stop generating response"
-				>
-					Stop
-				</button>
-			{:else}
-				<button
-					type="submit"
-					class="rounded-r-lg bg-blue-600 p-2 px-4 font-bold disabled:bg-gray-500"
-					disabled={isSubmitDisabled}
-					aria-label="Send message"
-					data-testid="send-button"
-				>
-					Send
-				</button>
 			{/if}
-		</form>
-		{#if isStreaming}
-			<p class="pt-2 text-center text-sm text-gray-400" data-testid="status-responding">
-				Responding...
-			</p>
+		</main>
+
+		{#if traceNotes.length > 0}
+			<div class="border-t border-gray-700 bg-gray-800 p-4">
+				<details>
+					<summary class="cursor-pointer font-bold" data-testid="reasoning-summary"
+						>Reasoning Trace</summary
+					>
+					<div class="mt-2 space-y-1 text-sm text-gray-400" data-testid="reasoning-trace">
+						{#each traceNotes as note, i (`note_${i}`)}
+							<div>
+								<span class="rounded bg-gray-700 px-1 py-0.5 font-mono text-xs"
+									>{note.event.toUpperCase()}</span
+								>
+								<span class="ml-2 font-semibold">{note.node}</span>
+								{#each Object.entries(note.data ?? {}) as [key, value], i (`note_entry_${key}_${i}`)}
+									{#if String(value).length < 10}
+										<span>[{key}: {value}]</span>
+									{/if}
+								{/each}
+							</div>
+						{/each}
+					</div>
+				</details>
+			</div>
 		{/if}
-	</footer>
+
+		<footer class="bg-gray-800 p-4">
+			<form onsubmit={handleSubmit} class="flex items-center">
+				<input
+					bind:value={input}
+					type="text"
+					placeholder="Type your message..."
+					class="flex-1 rounded-l-lg bg-gray-700 p-2 focus:outline-none disabled:opacity-50"
+					disabled={isStreaming}
+					aria-label="Chat input"
+					data-testid="chat-input"
+				/>
+				{#if isStreaming}
+					<button
+						type="button"
+						onclick={stopStream}
+						class="rounded-r-lg bg-red-600 p-2 px-4 font-bold hover:bg-red-700"
+						aria-label="Stop generating response"
+					>
+						Stop
+					</button>
+				{:else}
+					<button
+						type="submit"
+						class="rounded-r-lg bg-blue-600 p-2 px-4 font-bold disabled:bg-gray-500"
+						disabled={isSubmitDisabled}
+						aria-label="Send message"
+						data-testid="send-button"
+					>
+						Send
+					</button>
+				{/if}
+			</form>
+			{#if isStreaming}
+				<p class="pt-2 text-center text-sm text-gray-400" data-testid="status-responding">
+					Responding...
+				</p>
+			{/if}
+		</footer>
+	</div>
 </div>
