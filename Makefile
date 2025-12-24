@@ -15,7 +15,7 @@ stop:
 
 .PHONY: clean-logs
 clean-logs:
-	rm -r data/logs/*
+	rm -r data/chat/*
 
 .PHONY: clean-memory
 clean-memory:

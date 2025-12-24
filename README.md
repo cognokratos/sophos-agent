@@ -14,8 +14,8 @@ This will build the `web` service and start all the required services. You can t
 
 Check out our examples to see how the agent uses MCP tools:
 
-- [Memory MCP Example](./docs/examples/memory-mcp-example.md) - Demonstrates reading and writing memory entries
-- [Fetch MCP Example](./docs/examples/fetch-mcp-example.md) - Demonstrates performing safe HTTP GET requests
+- [Memory MCP Example](examples/memory-mcp-example.md) - Demonstrates reading and writing memory entries
+- [Fetch MCP Example](examples/fetch-mcp-example.md) - Demonstrates performing safe HTTP GET requests
 
 ---
 

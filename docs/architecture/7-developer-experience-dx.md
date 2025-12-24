@@ -4,7 +4,7 @@
 
 ```
 apps/web (SvelteKit + Agent)
-infra/ (compose, Dockerfiles, profiles) • data/logs/ • scripts/ • docs/
+infra/ (compose, Dockerfiles, profiles) • data/chat/ • scripts/ • docs/
 ```
 
 **Why:** simple onboarding; aligns with Team Fullstack workflow & templates.

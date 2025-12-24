@@ -9,12 +9,12 @@ services:
       - OLLAMA_HOST=${OLLAMA_HOST}
       - OLLAMA_MODEL=${OLLAMA_MODEL}
       - MCP_PROXY_API_KEY=${MCP_PROXY_API_KEY}
-      - LOG_DIR=/data/logs
+      - CHAT_DIR=/data/chat
       - AGENT_PROFILE=monolith
       - PORT=5173
       - PUBLIC_MODE=false
     volumes:
-      - ../data/logs:/data/logs
+      - ../data/chat:/data/chat
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:5173/api/healthz']
       interval: 30s

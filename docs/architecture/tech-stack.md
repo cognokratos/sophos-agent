@@ -32,7 +32,7 @@ Local-first, teaching-focused stack with transparent reasoning, one-command Dock
 ## Persistence
 
 - **Primary:** Markdown files per turn + `trace.jsonl`
-- **Path:** `/data/logs/{sessionId}/`
+- **Path:** `/data/chat/{conversationId}/`
 - **Future:** Pluggable adapter → SQLite (Phase 2) without contract changes
 
 ## Observability (zero-SaaS)

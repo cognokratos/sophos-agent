@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
-	import { debounce, safeJsonParse, trimMessages } from '$lib/chat-utils';
-	import type { TraceNote } from '$lib/chat';
+	import { safeJsonParse, parseUuid } from '$lib/utils';
+	import { type TraceNote, formatTraceNote } from '$lib/chat';
+	import type { UUID } from 'crypto';
 
 	// --- Types ---
 	type Msg = {
@@ -12,12 +13,13 @@
 
 	// --- State ---
 	let messages = $state<Msg[]>([]);
+	let last = $derived(messages.at(-1));
 	let traceNotes = $state<TraceNote[]>([]);
 	let input = $state('');
 	let error = $state<{ code: string; message: string } | null>(null);
-	let conv = $state<string | null>(null);
-	let session = $state<string | null>(null);
+	let conversation = $state<UUID | null>(null);
 	let isStreaming = $state(false);
+	let isLoadingHistory = $state(false);
 
 	let eventSource: EventSource | null = null;
 	let chatContainer: HTMLElement;
@@ -27,64 +29,18 @@
 	// --- Derived state ---
 	const isSubmitDisabled = $derived(isStreaming || input.trim() === '');
 
-	// --- Persistence ---
-	const CHAT_MESSAGES_KEY = 'chat:messages';
-	const CHAT_CONV_KEY = 'chat:conv';
-	const CHAT_SESSION_KEY = 'chat:session';
-
-	function persistState() {
-		if (!browser) return;
-		console.log('persistState: Saving to localStorage', {
-			conv,
-			session,
-			messagesCount: messages.length
-		});
-		const trimmed = trimMessages(messages, 50);
-		localStorage.setItem(CHAT_MESSAGES_KEY, JSON.stringify(trimmed));
-		if (conv) localStorage.setItem(CHAT_CONV_KEY, conv);
-		else localStorage.removeItem(CHAT_CONV_KEY);
-		if (session) localStorage.setItem(CHAT_SESSION_KEY, session);
-		else localStorage.removeItem(CHAT_SESSION_KEY);
-	}
-
-	const debouncedPersist = debounce(persistState, 400);
-
-	function loadFromStorage() {
-		if (!browser) return;
-		console.log('loadFromStorage: Loading from localStorage...');
-		messages = safeJsonParse<Msg[]>(localStorage.getItem(CHAT_MESSAGES_KEY), []);
-		conv = localStorage.getItem(CHAT_CONV_KEY);
-		session = localStorage.getItem(CHAT_SESSION_KEY);
-		console.log('loadFromStorage: Loaded state:', {
-			messagesCount: messages.length,
-			conv,
-			session
-		});
-	}
-
 	// --- Effects ---
 	$effect(() => {
 		if (!browser || initialized) return;
 		initialized = true;
 
-		console.log('Effect: Component mounted. Initializing state from localStorage.');
-		loadFromStorage();
-		if (session) {
-			console.log(`Effect: Found session ${session}, resuming.`);
-			resumeSession(session);
-		}
+		console.log('Effect: Component mounted. Loading conversation history.');
+		loadConversationHistory();
 
 		return () => {
 			console.log('Effect: Component destroying. Closing EventSource.');
 			eventSource?.close();
 		};
-	});
-
-	$effect(() => {
-		// This effect will re-run whenever its dependencies (messages, conv, session) change.
-		// We debounce the actual writing to localStorage to prevent thrashing.
-		console.log('Effect: State changed, debouncing persistence.');
-		debouncedPersist();
 	});
 
 	$effect(() => {
@@ -94,9 +50,64 @@
 		}
 	});
 
+	// --- Load conversation history ---
+	async function loadConversationHistory() {
+		if (!browser) return;
+
+		console.log('loadConversationHistory: Attempting to load most recent conversation...');
+		isLoadingHistory = true;
+
+		try {
+			// First, get the most recent conversation ID
+			const recentResponse = await fetch('/api/conversations');
+			if (!recentResponse.ok) {
+				throw new Error(`Failed to get recent conversation: ${recentResponse.status}`);
+			}
+
+			const { conversationId } = await recentResponse.json();
+
+			if (conversationId) {
+				console.log(`loadConversationHistory: Found recent conversation: ${conversationId}`);
+
+				// Load the messages from the conversation
+				const messagesResponse = await fetch(
+					`/api/conversations/${encodeURIComponent(conversationId)}`
+				);
+				if (!messagesResponse.ok) {
+					throw new Error(`Failed to load conversation: ${messagesResponse.status}`);
+				}
+
+				const { messages: loadedMessages } = await messagesResponse.json();
+
+				// Update state with loaded messages
+				messages = loadedMessages.map((msg: Msg, index: number) => ({
+					id: `message_${index}`,
+					role: msg.role,
+					content: msg.content
+				}));
+
+				conversation = parseUuid(conversationId);
+				console.log(
+					`loadConversationHistory: Loaded ${loadedMessages.length} messages from conversation: ${conversation}`
+				);
+				if (last?.role === 'user') {
+					resumeSession(conversation);
+				}
+			} else {
+				console.log('loadConversationHistory: No recent conversation found, starting fresh');
+				messages = [];
+				conversation = null;
+			}
+		} catch (err) {
+			console.error('loadConversationHistory: Error loading conversation history:', err);
+			error = { code: 'LOAD_HISTORY_ERROR', message: 'Failed to load conversation history' };
+		} finally {
+			isLoadingHistory = false;
+		}
+	}
+
 	// --- SSE Handling ---
 	function appendToken(token: string) {
-		const last = messages.at(-1);
 		if (last?.role === 'assistant') {
 			last.content += token;
 		}
@@ -106,10 +117,8 @@
 		console.log('finalizeStream: Closing EventSource, resetting streaming state.');
 		eventSource?.close();
 		eventSource = null;
-		session = null;
 		isStreaming = false;
 		isSseStarting = false;
-		persistState(); // Ensure final state is saved
 	}
 
 	function stopStream() {
@@ -118,22 +127,21 @@
 		finalizeStream();
 	}
 
-	function startSse(sessionId: string) {
+	function startSse(conversationId: UUID) {
 		if (isSseStarting || eventSource) {
 			console.warn('startSse: SSE stream already starting or active. Aborting new start.');
 			return;
 		}
 
 		isSseStarting = true;
-		console.log(`startSse: Starting SSE for session ${sessionId}`);
-		eventSource = new EventSource(`/api/chat?session=${encodeURIComponent(sessionId)}`);
+		console.log(`startSse: Starting SSE for conversation ${conversationId}`);
+		eventSource = new EventSource(`/api/chat?conversation=${encodeURIComponent(conversationId)}`);
 		isStreaming = true;
 		error = null;
 
-		const lastMessage = messages.at(-1);
-		if (!lastMessage || lastMessage.role !== 'assistant') {
+		if (last?.role !== 'assistant') {
 			console.log('startSse: Adding new assistant message placeholder.');
-			messages.push({ id: `assistant_${sessionId}`, role: 'assistant', content: '' });
+			messages.push({ id: `message_${messages.length}`, role: 'assistant', content: '' });
 		}
 
 		eventSource.onopen = () => {
@@ -150,9 +158,11 @@
 
 		eventSource.addEventListener('trace', (e) => {
 			const traceData = safeJsonParse<TraceNote | null>(e.data, null);
-			if (traceData) {
-				traceNotes.push(traceData);
+			if (!traceData) {
+				return;
 			}
+			traceNotes.push(traceData);
+			appendToken(formatTraceNote(traceData));
 		});
 
 		eventSource.onmessage = (e) => {
@@ -180,9 +190,9 @@
 		});
 	}
 
-	function resumeSession(sessionId: string) {
-		console.log(`resumeSession: Attempting to resume session: ${sessionId}`);
-		startSse(sessionId); // Last-Event-ID handled by the browser automatically
+	function resumeSession(conversationId: UUID) {
+		console.log(`resumeSession: Attempting to resume conversation: ${conversationId}`);
+		startSse(conversationId); // Last-Event-ID handled by the browser automatically
 	}
 
 	async function handleSubmit(event: Event) {
@@ -197,7 +207,9 @@
 		const originalInput = input;
 		input = '';
 
-		console.log(`handleSubmit: Submitting message: "${userMessageText}" for conv: ${conv}`);
+		console.log(
+			`handleSubmit: Submitting message: "${userMessageText}" for conversation: "${conversation}"`
+		);
 
 		const controller = new AbortController();
 		const timeoutId = setTimeout(() => {
@@ -209,7 +221,7 @@
 			const response = await fetch('/api/chat', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ message: userMessageText, conv: conv }),
+				body: JSON.stringify({ conversation, message: userMessageText }),
 				signal: controller.signal
 			});
 			clearTimeout(timeoutId);
@@ -217,15 +229,13 @@
 			console.log('handleSubmit: POST /api/chat response status:', response.status);
 
 			if (response.status === 409) {
-				const data = await response.json();
-				if (data.session) {
+				if (conversation) {
 					console.log(
-						`handleSubmit: Got 409, session ${data.session} already in progress. Resuming.`
+						`handleSubmit: Got 409, conversation ${conversation} already in progress. Resuming.`
 					);
-					session = data.session;
-					resumeSession(data.session);
-					return;
+					resumeSession(conversation);
 				}
+				return;
 			}
 
 			if (!response.ok) {
@@ -246,12 +256,10 @@
 
 			const data = await response.json();
 			console.log('handleSubmit: POST /api/chat successful, data:', data);
-			conv = data.conv;
-			session = data.session;
-			messages.push({ id: `user_${session}`, role: 'user', content: userMessageText });
+			conversation = parseUuid(data.conversation);
+			messages.push({ id: `message_${messages.length}`, role: 'user', content: userMessageText });
 
-			persistState();
-			startSse(data.session);
+			startSse(conversation);
 		} catch (e) {
 			clearTimeout(timeoutId);
 			console.error('handleSubmit: Fetch failed:', e);
@@ -265,46 +273,59 @@
 <div class="flex h-screen flex-col bg-gray-900 text-white">
 	<header class="bg-gray-800 p-4 shadow-md">
 		<h1 class="text-2xl font-bold">Sophos Agent</h1>
-		<p data-testid="conversation-id">{conv ?? 'New conversation'}</p>
+		<p data-testid="conversation-id">{conversation ?? 'New conversation'}</p>
 	</header>
 
 	<main bind:this={chatContainer} class="flex-1 overflow-y-auto p-4">
-		{#if error}
-			<div class="mb-4 rounded-lg bg-red-500 p-4 text-white">
-				<p class="font-bold">Error: {error.code}</p>
-				<p>{error.message}</p>
+		{#if isLoadingHistory}
+			<div class="flex h-full flex-col items-center justify-center">
+				<div class="mb-4 flex items-center justify-center space-x-2">
+					<span class="h-3 w-3 animate-pulse rounded-full bg-blue-500"></span>
+					<span class="h-3 w-3 animate-pulse rounded-full bg-blue-500 [animation-delay:0.2s]"
+					></span>
+					<span class="h-3 w-3 animate-pulse rounded-full bg-blue-500 [animation-delay:0.4s]"
+					></span>
+				</div>
+				<p class="text-gray-400">Loading your conversation history...</p>
+			</div>
+		{:else}
+			{#if error}
+				<div class="mb-4 rounded-lg bg-red-500 p-4 text-white">
+					<p class="font-bold">Error: {error.code}</p>
+					<p>{error.message}</p>
+				</div>
+			{/if}
+			<div class="space-y-4">
+				{#each messages as message (message.id)}
+					{#if message.content}
+						<div class={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+							<div
+								class={`w-fit max-w-5/6 rounded-lg px-4 py-2 ${
+									message.role === 'user' ? 'bg-blue-600 text-right' : 'bg-gray-700'
+								}`}
+							>
+								<p
+									class="font-sans whitespace-pre-wrap"
+									data-testid={message.role === 'user' ? 'user-message' : 'assistant-message'}
+								>
+									{message.content.trim().replaceAll('<br>', '\n')}
+								</p>
+							</div>
+						</div>
+					{:else}
+						<div
+							class="flex w-fit items-center justify-start space-x-1 rounded-lg bg-gray-700 px-4 py-2"
+						>
+							<span class="h-2 w-2 animate-pulse rounded-full bg-blue-500"></span>
+							<span class="h-2 w-2 animate-pulse rounded-full bg-blue-500 [animation-delay:0.2s]"
+							></span>
+							<span class="h-2 w-2 animate-pulse rounded-full bg-blue-500 [animation-delay:0.4s]"
+							></span>
+						</div>
+					{/if}
+				{/each}
 			</div>
 		{/if}
-		<div class="space-y-4">
-			{#each messages as message (message.id)}
-				{#if message.content}
-					<div class={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-						<div
-							class={`w-fit max-w-5/6 rounded-lg px-4 py-2 ${
-								message.role === 'user' ? 'bg-blue-600 text-right' : 'bg-gray-700'
-							}`}
-						>
-							<p
-								class="font-sans whitespace-pre-wrap"
-								data-testid={message.role === 'user' ? 'user-message' : 'assistant-message'}
-							>
-								{message.content.trim().replaceAll('<br>', '\n')}
-							</p>
-						</div>
-					</div>
-				{:else}
-					<div
-						class="flex w-fit items-center justify-start space-x-1 rounded-lg bg-gray-700 px-4 py-2"
-					>
-						<span class="h-2 w-2 animate-pulse rounded-full bg-blue-500"></span>
-						<span class="h-2 w-2 animate-pulse rounded-full bg-blue-500 [animation-delay:0.2s]"
-						></span>
-						<span class="h-2 w-2 animate-pulse rounded-full bg-blue-500 [animation-delay:0.4s]"
-						></span>
-					</div>
-				{/if}
-			{/each}
-		</div>
 	</main>
 
 	{#if traceNotes.length > 0}
@@ -314,14 +335,16 @@
 					>Reasoning Trace</summary
 				>
 				<div class="mt-2 space-y-1 text-sm text-gray-400" data-testid="reasoning-trace">
-					{#each traceNotes as note, i (`note_${i}}`)}
+					{#each traceNotes as note, i (`note_${i}`)}
 						<div>
 							<span class="rounded bg-gray-700 px-1 py-0.5 font-mono text-xs"
 								>{note.event.toUpperCase()}</span
 							>
 							<span class="ml-2 font-semibold">{note.node}</span>
 							{#each Object.entries(note.data ?? {}) as [key, value], i (`note_entry_${key}_${i}`)}
-								<span>[{key}: {value}}</span>
+								{#if String(value).length < 10}
+									<span>[{key}: {value}]</span>
+								{/if}
 							{/each}
 						</div>
 					{/each}

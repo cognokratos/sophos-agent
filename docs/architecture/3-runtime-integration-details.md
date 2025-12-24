@@ -5,7 +5,7 @@
 - **web (SvelteKit + Agent, v0 monolith)** — UI, `/api/*` endpoints, invokes graph.
 - **ollama** — model server; default `mistral`.
 - **mcp-memory / mcp-fetch** — tool servers.
-- **persistence** — host-mounted `data/logs/`.
+- **persistence** — host-mounted `data/chat/`.
   All orchestrated via Compose profiles.
 
 ## 3.2 Public HTTP API (thin surface)
@@ -69,7 +69,7 @@ Standard handler on both sides; codes include `BAD_REQUEST`, `MODEL_UNAVAILABLE`
 ## 3.6 Markdown Persistence Layout
 
 ```
-/data/logs/{sessionId}/
+/data/chat/{conversationId}/
   0001.user.md
   0002.assistant.md
   trace.jsonl     # stream of TraceNote events
