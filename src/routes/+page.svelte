@@ -4,6 +4,7 @@
 	import { type TraceNote, formatTraceNote } from '$lib/chat';
 	import type { UUID } from 'crypto';
 	import ConversationList from '$lib/components/ConversationList.svelte';
+	import type { ConversationMetadata } from './api/conversations/+server';
 
 	// --- Types ---
 	type Msg = {
@@ -11,13 +12,6 @@
 		role: 'user' | 'assistant';
 		content: string;
 	};
-
-	interface ConversationMetadata {
-		id: string; // Using string since conversation IDs might not be UUIDs
-		title: string;
-		updatedAt: Date;
-		messageCount: number;
-	}
 
 	// --- State ---
 	let messages = $state<Msg[]>([]);
@@ -61,6 +55,14 @@
 		}
 	});
 
+	// Update conversation list when new conversation is created
+	$effect(() => {
+		if (conversation && !conversations.some(c => c.id === conversation)) {
+			// If this is a new conversation not in the list, reload the list
+			loadConversations();
+		}
+	});
+
 	// --- Load conversation list ---
 	async function loadConversations() {
 		if (!browser) return;
@@ -75,7 +77,7 @@
 			}
 
 			const { conversations: convList } = await response.json();
-			conversations = convList.map((conv: any) => ({
+			conversations = convList.map((conv: ConversationMetadata) => ({
 				...conv,
 				updatedAt: new Date(conv.updatedAt)
 			}));
@@ -110,29 +112,7 @@
 				console.log(`loadConversationHistory: Found most recent conversation: ${mostRecent.id}`);
 
 				// Load the messages from the conversation
-				const messagesResponse = await fetch(
-					`/api/conversations/${encodeURIComponent(mostRecent.id)}`
-				);
-				if (!messagesResponse.ok) {
-					throw new Error(`Failed to load conversation: ${messagesResponse.status}`);
-				}
-
-				const { messages: loadedMessages } = await messagesResponse.json();
-
-				// Update state with loaded messages
-				messages = loadedMessages.map((msg: Msg, index: number) => ({
-					id: `message_${index}`,
-					role: msg.role,
-					content: msg.content
-				}));
-
-				conversation = parseUuid(mostRecent.id);
-				console.log(
-					`loadConversationHistory: Loaded ${loadedMessages.length} messages from conversation: ${conversation}`
-				);
-				if (last?.role === 'user') {
-					resumeSession(conversation);
-				}
+				await loadConversation(mostRecent.id)
 			} else {
 				console.log('loadConversationHistory: No recent conversation found, starting fresh');
 				messages = [];
@@ -175,6 +155,9 @@
 			console.log(
 				`loadConversation: Loaded ${loadedMessages.length} messages from conversation: ${conversation}`
 			);
+			if (last?.role === 'user') {
+				resumeSession(conversation);
+			}
 		} catch (err) {
 			console.error('loadConversation: Error loading conversation:', err);
 			error = { code: 'LOAD_CONVERSATION_ERROR', message: 'Failed to load conversation' };
@@ -196,6 +179,7 @@
 		eventSource = null;
 		isStreaming = false;
 		isSseStarting = false;
+		loadConversations();
 	}
 
 	function stopStream() {
@@ -354,6 +338,27 @@
 	async function startNewConversation() {
 		console.log('startNewConversation: Initiating new conversation...');
 
+		clearChatState();
+
+		// Reset conversation to null to indicate a new, unsaved conversation
+		conversation = null;
+
+		// Reload the conversation list to update UI
+		await loadConversations();
+
+		console.log('startNewConversation: Conversation state reset. Ready for new conversation.');
+	}
+
+	// Handle conversation selection
+	function handleConversationSelect(id: string) {
+		console.log(`handleConversationSelect: Selected conversation: ${id}`);
+		clearChatState();
+		loadConversation(parseUuid(id)); // Parse to UUID for internal use
+	}
+
+	function clearChatState() {
+		console.log('clearChatState: Clearing chat state.');
+
 		// Close any existing SSE connection
 		if (eventSource) {
 			console.log('startNewConversation: Closing existing SSE connection.');
@@ -368,29 +373,7 @@
 		error = null;
 		isStreaming = false;
 		isSseStarting = false;
-
-		// Reset conversation to null to indicate a new, unsaved conversation
-		conversation = null;
-
-		// Reload the conversation list to update UI
-		await loadConversations();
-
-		console.log('startNewConversation: Conversation state reset. Ready for new conversation.');
 	}
-
-	// Handle conversation selection
-	function handleConversationSelect(id: string) {
-		console.log(`handleConversationSelect: Selected conversation: ${id}`);
-		loadConversation(parseUuid(id)); // Parse to UUID for internal use
-	}
-
-	// Update conversation list when new conversation is created
-	$effect(() => {
-		if (conversation && !conversations.some(c => c.id === conversation)) {
-			// If this is a new conversation not in the list, reload the list
-			loadConversations();
-		}
-	});
 </script>
 
 <div class="flex h-screen bg-gray-900 text-white">
@@ -403,6 +386,37 @@
 			onItemClick={handleConversationSelect}
 			onNewConversation={startNewConversation}
 		/>
+
+		{#if traceNotes.length > 0}
+			<div class="border-t border-gray-700 bg-gray-800 p-4">
+				<details>
+					<summary class="cursor-pointer font-bold" data-testid="reasoning-summary"
+					>Reasoning Trace</summary
+					>
+					<div class="mt-2 space-y-1 text-sm text-gray-400" data-testid="reasoning-trace">
+						{#each traceNotes as note, i (`note_${i}`)}
+							<div>
+								<span class="rounded bg-gray-700 px-1 py-0.5 font-mono text-xs"
+								>{note.event.toUpperCase()}</span
+								>
+								<span class="ml-2 font-semibold">{note.node}</span>
+								{#if note.data}
+									<ul class="ml-4 mt-2 font-mono text-xs">
+										{#each Object.entries(note.data ?? {}) as [key, value], i (`note_entry_${key}_${i}`)}
+											{#if String(value).length < 20}
+												<li>
+													<span class="bg-blue-800 rounded px-1 py-0.5">* {key}: {value}</span>
+												</li>
+											{/if}
+										{/each}
+									</ul>
+								{/if}
+							</div>
+						{/each}
+					</div>
+				</details>
+			</div>
+		{/if}
 	</div>
 
 	<!-- Main Chat Area -->
@@ -410,9 +424,14 @@
 		<header class="bg-gray-800 p-4 shadow-md">
 			<div class="flex justify-between items-center">
 				<h1 class="text-2xl font-bold">Sophos Agent</h1>
-				<div class="text-sm text-gray-400">
+				{#if isStreaming}
+					<h3 class="pt-2 text-center text-sm text-gray-200" data-testid="status-responding">
+						Responding...
+					</h3>
+				{/if}
+				<h2 class="text-sm text-gray-400">
 					{conversation ? 'Current: ' + (conversations.find(c => c.id === conversation)?.title || conversation) : 'New conversation'}
-				</div>
+				</h2>
 			</div>
 		</header>
 
@@ -468,31 +487,6 @@
 			{/if}
 		</main>
 
-		{#if traceNotes.length > 0}
-			<div class="border-t border-gray-700 bg-gray-800 p-4">
-				<details>
-					<summary class="cursor-pointer font-bold" data-testid="reasoning-summary"
-						>Reasoning Trace</summary
-					>
-					<div class="mt-2 space-y-1 text-sm text-gray-400" data-testid="reasoning-trace">
-						{#each traceNotes as note, i (`note_${i}`)}
-							<div>
-								<span class="rounded bg-gray-700 px-1 py-0.5 font-mono text-xs"
-									>{note.event.toUpperCase()}</span
-								>
-								<span class="ml-2 font-semibold">{note.node}</span>
-								{#each Object.entries(note.data ?? {}) as [key, value], i (`note_entry_${key}_${i}`)}
-									{#if String(value).length < 10}
-										<span>[{key}: {value}]</span>
-									{/if}
-								{/each}
-							</div>
-						{/each}
-					</div>
-				</details>
-			</div>
-		{/if}
-
 		<footer class="bg-gray-800 p-4">
 			<form onsubmit={handleSubmit} class="flex items-center">
 				<input
@@ -525,11 +519,6 @@
 					</button>
 				{/if}
 			</form>
-			{#if isStreaming}
-				<p class="pt-2 text-center text-sm text-gray-400" data-testid="status-responding">
-					Responding...
-				</p>
-			{/if}
 		</footer>
 	</div>
 </div>

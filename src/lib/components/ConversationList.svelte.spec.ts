@@ -29,7 +29,7 @@ describe('ConversationList', () => {
 	});
 
 	it('renders the conversation list with titles and metadata', async () => {
-		const { component } = render(ConversationList, {
+		render(ConversationList, {
 			conversations: mockConversations,
 			currentConversation: null,
 			loading: false
@@ -52,17 +52,17 @@ describe('ConversationList', () => {
 	});
 
 	it('shows loading state when loading is true', async () => {
-		const { component } = render(ConversationList, {
+		render(ConversationList, {
 			conversations: [],
 			currentConversation: null,
 			loading: true
 		});
 
-		await expect.element(page.getByText('Loading...')).toBeInTheDocument();
+		await expect.element(page.getByText('Loading…')).toBeInTheDocument();
 	});
 
 	it('shows "No conversations" message when list is empty and not loading', async () => {
-		const { component } = render(ConversationList, {
+		render(ConversationList, {
 			conversations: [],
 			currentConversation: null,
 			loading: false
@@ -72,7 +72,7 @@ describe('ConversationList', () => {
 	});
 
 	it('highlights the current conversation', async () => {
-		const { component } = render(ConversationList, {
+		render(ConversationList, {
 			conversations: mockConversations,
 			currentConversation: '1',
 			loading: false
@@ -87,7 +87,7 @@ describe('ConversationList', () => {
 
 	it('calls onItemClick when a conversation is clicked', async () => {
 		const onItemClick = vi.fn();
-		const { component } = render(ConversationList, {
+		render(ConversationList, {
 			conversations: mockConversations,
 			currentConversation: null,
 			loading: false,
@@ -102,7 +102,7 @@ describe('ConversationList', () => {
 
 	it('calls onNewConversation when the new conversation button is clicked', async () => {
 		const onNewConversation = vi.fn();
-		const { component } = render(ConversationList, {
+		render(ConversationList, {
 			conversations: mockConversations,
 			currentConversation: null,
 			loading: false,

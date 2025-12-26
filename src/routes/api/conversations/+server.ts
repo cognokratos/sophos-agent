@@ -6,12 +6,18 @@ import { join } from 'node:path';
 
 const CHAT_DIR = env.CHAT_DIR ?? 'data/chat';
 
-interface ConversationMetadata {
+export interface ConversationMetadata {
 	id: string; // Using string as conversation IDs might not be UUIDs
 	title: string;
 	createdAt: Date;
 	updatedAt: Date;
 	messageCount: number;
+}
+
+function compareMessageFiles(a: string, b: string) {
+		const turnA = parseInt(a.split('.')[0], 10);
+		const turnB = parseInt(b.split('.')[0], 10);
+		return turnA - turnB;
 }
 
 export const GET: RequestHandler = async () => {
@@ -28,22 +34,17 @@ export const GET: RequestHandler = async () => {
 					if (fileStat.isDirectory()) {
 						// Get conversation metadata
 						const conversationDir = filePath;
-						const messageFiles = await readdir(conversationDir);
+						const allFiles = await readdir(conversationDir);
+						const messageFiles = allFiles.filter(f => f.endsWith('.md'));
+
 
 						// Count message files and get the first message for title
-						const messageFileCount = messageFiles.filter(f => f.endsWith('.md')).length;
+						const messageFileCount = messageFiles.length;
 
 						// Get the first message to use as title (if available)
 						let firstMessageContent = 'New Conversation';
-						const firstMessageFile = messageFiles
-							.filter(f => f.endsWith('.md'))
-							.sort((a, b) => {
-								const turnA = parseInt(a.split('.')[0], 10);
-								const turnB = parseInt(b.split('.')[0], 10);
-								return turnA - turnB;
-							})[0];
-
-						if (firstMessageFile) {
+						if (messageFileCount) {
+							const [firstMessageFile] = messageFiles.sort(compareMessageFiles);
 							try {
 								const firstMessagePath = join(conversationDir, firstMessageFile);
 								const content = await readFile(firstMessagePath, 'utf-8');
