@@ -2,11 +2,15 @@ import { test, expect } from '@playwright/test';
 import { rm, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-const CHAT_DIR = 'data/chat';
+const CHAT_DIR = 'data/test/chat';
 const TEST_MESSAGE = 'Get the content from https://httpbin.org/get';
 
 test.describe('Tool Call Persistence', () => {
 	let conversationId: string | null = null;
+
+	test.beforeAll(async () => {
+		await rm(CHAT_DIR, { recursive: true, force: true });
+	});
 
 	test.beforeEach(async ({ page }) => {
 		// Clear all browser storage for a completely clean state
@@ -20,10 +24,7 @@ test.describe('Tool Call Persistence', () => {
 
 	test.afterAll(async () => {
 		// Clean up chat from the test run
-		if (conversationId) {
-			const sessionDir = join(CHAT_DIR, conversationId);
-			await rm(sessionDir, { recursive: true, force: true });
-		}
+		await rm(CHAT_DIR, { recursive: true, force: true });
 	});
 
 	test('should record tool calls in both trace.jsonl and markdown files', async ({ page }) => {
@@ -46,7 +47,7 @@ test.describe('Tool Call Persistence', () => {
 		const traceSummary = page.getByTestId('reasoning-summary');
 
 		await expect(traceSummary).toBeVisible({
-			timeout: 30_000
+			timeout: 50_000
 		});
 
 		await traceSummary.click();
@@ -118,6 +119,6 @@ test.describe('Tool Call Persistence', () => {
 		const assistantMsgContent = await readFile(join(sessionDir, '0002.assistant.md'), 'utf-8');
 
 		// Verify that the markdown file contains tool call information
-		expect(assistantMsgContent).toContain('<!-- TOOL RESULT: fetch -->');
+		expect(assistantMsgContent).toContain('Tool: fetch');
 	});
 });

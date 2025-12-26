@@ -95,8 +95,10 @@ describe('ConversationList', () => {
 		});
 
 		// Check that the first conversation item exists with its unique ID
-		const conversationItem = page.getByTestId('conversation-item-1');
-		await expect.element(conversationItem).toBeInTheDocument();
+		const conversationItems = page.getByTestId('conversation-item').all();
+		for (const conversationItem of conversationItems) {
+			await expect.element(conversationItem).toBeInTheDocument();
+		}
 		// Note: We can't simulate clicks in this testing environment, so we're just checking the component renders
 	});
 

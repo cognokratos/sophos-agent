@@ -1,8 +1,16 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
+import { rm } from 'node:fs/promises';
+
+const CHAT_DIR = 'data/test/chat';
 
 test.describe('Conversation Browsing', () => {
 	test.beforeEach(async ({ page }) => {
+		await rm(CHAT_DIR, { recursive: true, force: true });
 		await page.goto('/');
+	});
+
+	test.afterAll(async () => {
+		await rm(CHAT_DIR, { recursive: true, force: true });
 	});
 
 	test('should display conversation list sidebar', async ({ page }) => {

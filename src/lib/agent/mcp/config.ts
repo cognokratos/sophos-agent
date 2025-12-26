@@ -30,10 +30,11 @@ function getConfigFile() {
 }
 
 function getMemoryFilePath() {
-	const filePath = env.MCP_MEMORY_FILE_PATH;
-	if (!filePath) {
+	const memoryDir = env.MCP_MEMORY_DIR;
+	if (!memoryDir) {
 		return '/tmp/data/memory/memory.jsonl';
 	}
+	const filePath = `${memoryDir}/memory.jsonl`;
 	if (path.isAbsolute(filePath)) {
 		return filePath;
 	}

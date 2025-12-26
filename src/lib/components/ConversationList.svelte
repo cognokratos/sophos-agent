@@ -102,7 +102,7 @@
 								class="w-full text-left p-3 transition-colors duration-150 flex items-start justify-between hover:bg-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
 								class:bg-gray-700={currentConversation === conversation.id}
 								aria-current={currentConversation === conversation.id ? 'true' : undefined}
-								data-testid={'conversation-item-' + conversation.id}
+								data-testid='conversation-item'
 							>
 								<div class="flex-1 min-w-0">
 									<div class="font-medium truncate">{conversation.title}</div>
