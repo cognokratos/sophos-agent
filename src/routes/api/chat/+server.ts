@@ -14,7 +14,7 @@ import { parseUuid } from '$lib/utils';
 
 const SHOW_TOOLS = env.SHOW_TOOLS?.toLowerCase() === 'true';
 
-type EventCode = 'token' | 'trace' | 'end' | 'server-error';
+type EventCode = 'token' | 'trace' | 'end' | 'error';
 
 interface Session {
 	conversation: UUID;
@@ -74,52 +74,51 @@ export const POST: RequestHandler = async ({ request }) => {
 	};
 	sessions.set(conversationId, newSession);
 
-	const userMessage: ChatMessage = {
-		conversation: conversationId,
-		id: crypto.randomUUID(),
-		role: 'user',
-		content: message
-	};
-	const turn = await getNextTurn(conversationId);
-	await writeMessageFile(conversationId, turn, userMessage);
-
-	startAgent(conversationId, newSession, userMessage);
+	startAgent(conversationId, newSession, message);
 
 	return json({ conversation: conversationId, session: newSession });
 };
 
-async function startAgent(conversationId: UUID, session: Session, userMessage: ChatMessage) {
+async function startAgent(conversationId: UUID, session: Session, message: string) {
 	try {
+		const chatHistory = await getConversationMessages(conversationId);
+		const userTurn = await getNextTurn(conversationId);
+		const userMessage: ChatMessage = {
+			conversation: conversationId,
+			id: crypto.randomUUID(),
+			role: 'user',
+			content: message
+		};
+		await writeMessageFile(conversationId, userTurn, userMessage);
+
 		session.status = 'streaming';
 		session.updatedAt = Date.now();
 
-		let assistantContent = '';
-		const messageId: UUID = crypto.randomUUID();
+		const assistantTurn = await getNextTurn(conversationId);
 		const assistantMessage: ChatMessage = {
 			conversation: conversationId,
-			id: messageId,
+			id: crypto.randomUUID(),
 			role: 'assistant',
 			content: ''
 		};
 
-		const messages = await getConversationMessages(conversationId);
-		for await (const event of runAgent(userMessage, messages)) {
+		for await (const event of runAgent(assistantTurn, userMessage, chatHistory)) {
 			session.updatedAt = Date.now();
 			const id = String(++session.tokenIndex!);
 
 			switch (event.type) {
 				case 'token': {
-					assistantContent += event.data;
+					assistantMessage.content += event.data;
 					sendEvent('token', id, event.data, session);
 					break;
 				}
 				case 'trace': {
 					await writeTrace(conversationId, event.data);
 
-					// If this is a tool-related trace event, store it for markdown persistence
+					// If this is a tool-related trace event, store it for Markdown persistence
 					if (SHOW_TOOLS) {
 						const noteMessage = formatTraceNote(event.data);
-						assistantContent += noteMessage;
+						assistantMessage.content += noteMessage;
 						sendEvent('token', id, noteMessage, session);
 					}
 
@@ -129,9 +128,7 @@ async function startAgent(conversationId: UUID, session: Session, userMessage: C
 
 				case 'end': {
 					session.status = 'done';
-					assistantMessage.content = assistantContent;
-					const nextTurn = await getNextTurn(conversationId);
-					await writeMessageFile(conversationId, nextTurn, assistantMessage);
+					await writeMessageFile(conversationId, assistantTurn, assistantMessage);
 
 					sendEvent('end', id, { conversation: conversationId, session }, session);
 					break;
@@ -148,7 +145,7 @@ async function startAgent(conversationId: UUID, session: Session, userMessage: C
 		session.error = error;
 		session.updatedAt = Date.now();
 		const errId = String(++session.tokenIndex!);
-		sendEvent('server-error', errId, error, session);
+		sendEvent('error', errId, error, session);
 	}
 }
 
@@ -239,7 +236,7 @@ export const GET: RequestHandler = ({ url, request }) => {
 				send('end', session, String(session.tokenIndex ?? 0));
 			} else if (session.status === 'error') {
 				send(
-					'server-error',
+					'error',
 					session.error || { code: 'UNKNOWN', message: 'Unknown error' },
 					String(session.tokenIndex ?? 0)
 				);

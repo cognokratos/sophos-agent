@@ -22,7 +22,7 @@ describe('Persistence Module', () => {
 		delete process.env.SHOW_TOOLS;
 	});
 
-	it('should write a user message to a markdown file', async () => {
+	it('should write a user message to a Markdown file', async () => {
 		const conversationId = 'test-conversation-1';
 		const turn = 1;
 		const message: ChatMessage = {
@@ -58,7 +58,7 @@ describe('Persistence Module', () => {
 		expect(fileContent).toBe('Hi there!');
 	});
 
-	it('should write a message with tool call information to markdown', async () => {
+	it('should write a message with tool call information to Markdown', async () => {
 		const conversationId = 'test-conversation-3';
 		const turn = 5;
 		const message: ChatMessage = {
@@ -78,7 +78,7 @@ describe('Persistence Module', () => {
 
 	it('should append a trace note to trace.jsonl', async () => {
 		const conversationId = 'test-conversation-3';
-		const traceNote: TraceNote = { node: 'agent', event: 'enter' };
+		const traceNote: TraceNote = { name: 'qwen3', turn: 2, node: 'agent', event: 'enter' };
 
 		await writeTrace(conversationId, traceNote);
 
@@ -86,6 +86,8 @@ describe('Persistence Module', () => {
 		const fileContent = await readFile(filePath, 'utf-8');
 		const parsed = JSON.parse(fileContent);
 
+		expect(parsed.name).toBe('qwen3');
+		expect(parsed.turn).toBe(2);
 		expect(parsed.node).toBe('agent');
 		expect(parsed.event).toBe('enter');
 		expect(parsed.ts).toBeDefined();
@@ -93,8 +95,8 @@ describe('Persistence Module', () => {
 
 	it('should append multiple trace notes to the same file', async () => {
 		const conversationId = 'test-conversation-4';
-		const traceNote1: TraceNote = { node: 'agent', event: 'enter' };
-		const traceNote2: TraceNote = { node: 'agent', event: 'leave' };
+		const traceNote1: TraceNote = { name: 'qwen3', turn: 2, node: 'agent', event: 'enter' };
+		const traceNote2: TraceNote = { name: 'qwen3', turn: 4, node: 'agent', event: 'leave' };
 
 		await writeTrace(conversationId, traceNote1);
 		await writeTrace(conversationId, traceNote2);
@@ -109,6 +111,12 @@ describe('Persistence Module', () => {
 		const parsed2 = JSON.parse(lines[1]);
 
 		expect(parsed1.event).toBe('enter');
+		expect(parsed1.node).toBe('agent');
+		expect(parsed1.turn).toBe(2);
+		expect(parsed1.name).toBe('qwen3');
 		expect(parsed2.event).toBe('leave');
+		expect(parsed2.node).toBe('agent');
+		expect(parsed2.turn).toBe(4);
+		expect(parsed2.name).toBe('qwen3');
 	});
 });

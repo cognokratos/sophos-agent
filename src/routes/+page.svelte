@@ -5,6 +5,7 @@
 	import type { UUID } from 'crypto';
 	import ConversationList from '$lib/components/ConversationList.svelte';
 	import type { ConversationMetadata } from '$lib/agent/persistence';
+	import TraceNoteList from '$lib/components/TraceNoteList.svelte';
 
 	// --- Types ---
 	type Msg = {
@@ -387,34 +388,7 @@
 		/>
 
 		{#if traceNotes.length > 0}
-			<div class="border-t border-gray-700 bg-gray-800 p-4">
-				<details>
-					<summary class="cursor-pointer font-bold" data-testid="reasoning-summary"
-						>Reasoning Trace</summary
-					>
-					<div class="mt-2 space-y-1 text-sm text-gray-400" data-testid="reasoning-trace">
-						{#each traceNotes as note, i (`note_${i}`)}
-							<div>
-								<span class="rounded bg-gray-700 px-1 py-0.5 font-mono text-xs"
-									>{note.event.toUpperCase()}</span
-								>
-								<span class="ml-2 font-semibold">{note.node}</span>
-								{#if note.data}
-									<ul class="mt-2 ml-4 font-mono text-xs">
-										{#each Object.entries(note.data ?? {}) as [key, value], i (`note_entry_${key}_${i}`)}
-											{#if String(value).length < 20}
-												<li>
-													<span class="rounded bg-blue-800 px-1 py-0.5">* {key}: {value}</span>
-												</li>
-											{/if}
-										{/each}
-									</ul>
-								{/if}
-							</div>
-						{/each}
-					</div>
-				</details>
-			</div>
+			<TraceNoteList {traceNotes} />
 		{/if}
 	</div>
 

@@ -27,7 +27,7 @@ test.describe('Tool Call Persistence', () => {
 		await rm(CHAT_DIR, { recursive: true, force: true });
 	});
 
-	test('should record tool calls in both trace.jsonl and markdown files', async ({ page }) => {
+	test('should record tool calls in both trace.jsonl and Markdown files', async ({ page }) => {
 		// 1. Send a message that will trigger a tool call (fetch URL)
 		await page.getByTestId('chat-input').fill(TEST_MESSAGE);
 		await page.getByTestId('send-button').click();
@@ -58,6 +58,7 @@ test.describe('Tool Call Persistence', () => {
 		// Check for specific events inside the scoped trace container
 		await expect(trace).toContainText('ENTER');
 		await expect(trace).toContainText('agent');
+		await expect(trace).toContainText('qwen3');
 
 		// 3. Wait for the response to complete
 		// Status text "Responding..." should disappear once the response is done.
@@ -65,8 +66,9 @@ test.describe('Tool Call Persistence', () => {
 			timeout: 500_000
 		});
 
+		await expect(trace).toContainText('RESULT');
 		await expect(trace).toContainText('tools');
-		await expect(trace).toContainText('TOOL_RESULT');
+		await expect(trace).toContainText('fetch');
 		await expect(trace).toContainText('LEAVE');
 
 		// 4. Verify log files were created
@@ -100,7 +102,7 @@ test.describe('Tool Call Persistence', () => {
 		expect(traceEntries[2]['node']).toBe('tools');
 		expect(traceEntries[2]['event']).toBe('enter');
 		expect(traceEntries[3]['node']).toBe('tools');
-		expect(traceEntries[3]['event']).toBe('tool_result');
+		expect(traceEntries[3]['event']).toBe('result');
 		expect(traceEntries[4]['node']).toBe('tools');
 		expect(traceEntries[4]['event']).toBe('leave');
 		expect(traceEntries[5]['node']).toBe('agent');
@@ -115,10 +117,10 @@ test.describe('Tool Call Persistence', () => {
 		expect(entry.data).toHaveProperty('tool_call_id');
 		expect(entry.data.name).toBe('fetch');
 
-		// Read the assistant message markdown to verify tool call information is included
+		// Read the assistant message Markdown to verify tool call information is included
 		const assistantMsgContent = await readFile(join(sessionDir, '0002.assistant.md'), 'utf-8');
 
-		// Verify that the markdown file contains tool call information
+		// Verify that the Markdown file contains tool call information
 		expect(assistantMsgContent).toContain('Tool: fetch');
 	});
 });

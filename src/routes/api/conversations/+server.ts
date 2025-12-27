@@ -7,11 +7,6 @@ export const GET: RequestHandler = async () => {
 		const sortedConversations = await listConversations();
 		return json({ conversations: sortedConversations });
 	} catch (error) {
-		if (error && typeof error === 'object' && 'code' in error) {
-			if (error.code === 'ENOENT') {
-				return json({ conversations: [] });
-			}
-		}
 		console.error('Error fetching conversations:', error);
 		return json(
 			{ error: { code: 'FETCH_ERROR', message: 'Failed to fetch conversations' } },

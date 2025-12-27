@@ -101,6 +101,7 @@ function convertMessage(message: ConversationMessage): HumanMessage | AIMessage 
 }
 
 export async function* runAgent(
+	currentTurn: number,
 	message: ChatMessage,
 	messages: ConversationMessage[]
 ): AsyncGenerator<AgentEvent> {
@@ -117,24 +118,33 @@ export async function* runAgent(
 
 	let currentStep = -1;
 	let currentNode = '';
+	let currentName = '';
 
 	for await (const [msg, meta] of stream) {
-		const nodeName = meta.langgraph_node;
-		const step = meta.langgraph_step;
+		const node: string = meta.langgraph_node;
+		const step: number = meta.langgraph_step;
+		const name: string = getName(msg, meta);
 
 		// Handle node/step transitions
 		if (step > currentStep) {
-			if (currentNode && currentNode !== nodeName) {
-				yield { type: 'trace', data: { node: currentNode, event: 'leave' } };
+			if (currentNode && currentNode !== node) {
+				yield {
+					type: 'trace',
+					data: { turn: currentTurn, name: currentName, node: currentNode, event: 'leave' }
+				};
 			}
 
 			currentStep = step;
-			currentNode = nodeName;
+			currentNode = node;
+			currentName = name;
 
-			yield { type: 'trace', data: { node: nodeName, event: 'enter' } };
+			yield {
+				type: 'trace',
+				data: { turn: currentTurn, name: currentName, node: currentNode, event: 'enter' }
+			};
 		}
 
-		if (nodeName === nodes.AGENT && AIMessage.isInstance(msg)) {
+		if (node === nodes.AGENT && AIMessage.isInstance(msg)) {
 			if (msg.content) {
 				yield {
 					type: 'token',
@@ -147,8 +157,10 @@ export async function* runAgent(
 					yield {
 						type: 'trace',
 						data: {
+							turn: currentTurn,
+							name: currentName,
 							node: 'tools',
-							event: 'tool_call',
+							event: 'call',
 							data: {
 								name: toolCall.name,
 								arguments: toolCall.args,
@@ -160,13 +172,15 @@ export async function* runAgent(
 			}
 		}
 
-		if (nodeName === nodes.TOOLS && ToolMessage.isInstance(msg)) {
+		if (node === nodes.TOOLS && ToolMessage.isInstance(msg)) {
 			if (msg.name && msg.tool_call_id) {
 				yield {
 					type: 'trace',
 					data: {
+						turn: currentTurn,
+						name: currentName,
 						node: 'tools',
-						event: 'tool_result',
+						event: 'result',
 						data: {
 							name: msg.name,
 							tool_call_id: msg.tool_call_id,
@@ -180,8 +194,21 @@ export async function* runAgent(
 
 	// Final leave + end
 	if (currentNode) {
-		yield { type: 'trace', data: { node: currentNode, event: 'leave' } };
+		yield {
+			type: 'trace',
+			data: { turn: currentTurn, name: currentName, node: currentNode, event: 'leave' }
+		};
 	}
 
 	yield { type: 'end' };
+}
+
+function getName(msg: BaseMessage, meta: Record<string, unknown>): string {
+	if (AIMessage.isInstance(msg)) {
+		return meta.ls_model_name as string;
+	}
+	if (ToolMessage.isInstance(msg)) {
+		return msg.name!;
+	}
+	return '';
 }
