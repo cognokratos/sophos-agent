@@ -13,8 +13,8 @@ start:
 stop:
 	docker compose -f ${COMPOSE_FILE} --env-file ${ENV_FILE} down
 
-.PHONY: clean-logs
-clean-logs:
+.PHONY: clean-chat
+clean-chat:
 	rm -r data/chat/*
 
 .PHONY: clean-memory
@@ -23,5 +23,5 @@ clean-memory:
 
 .PHONY: clean
 clean:
-	make clean-logs
+	make clean-chat
 	make clean-memory

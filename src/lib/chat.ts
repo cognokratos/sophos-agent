@@ -9,11 +9,6 @@ export interface ChatMessage {
 	content: string;
 }
 
-export interface ChatRequest {
-	message: string;
-	conversation: UUID;
-}
-
 export interface TraceNote {
 	node: string;
 	event: 'enter' | 'leave' | 'stream' | 'error' | 'tool' | 'tool_call' | 'tool_result';

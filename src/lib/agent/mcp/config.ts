@@ -1,6 +1,6 @@
 import { env } from '$env/dynamic/private';
 import { type MCPServers, parseMcpServers } from '$lib/agent/mcp/config/parser';
-import path from 'node:path';
+import path, { join } from 'node:path';
 
 /**
  * Loads MCP server configurations from a config file
@@ -10,7 +10,7 @@ export async function loadMCPConfig(): Promise<MCPServers> {
 	const fs = await import('node:fs/promises');
 	const path = await import('node:path');
 
-	const filePath = getConfigFile();
+	const filePath = getMcpConfigFile();
 	const memoryPath = getMemoryFilePath();
 
 	try {
@@ -25,16 +25,20 @@ export async function loadMCPConfig(): Promise<MCPServers> {
 	}
 }
 
-function getConfigFile() {
-	return env.MCP_CONFIG_FILE ?? 'config/mcp.json';
+function getMcpConfigFile() {
+	const configDir = process.env.CONFIG_DIR;
+	if (!configDir) {
+		return 'config/mcp.json';
+	}
+	return join(configDir, 'mcp.json');
 }
 
 function getMemoryFilePath() {
-	const memoryDir = env.MCP_MEMORY_DIR;
+	const memoryDir = env.MEMORY_DIR;
 	if (!memoryDir) {
 		return '/tmp/data/memory/memory.jsonl';
 	}
-	const filePath = `${memoryDir}/memory.jsonl`;
+	const filePath = join(memoryDir, 'memory.jsonl');
 	if (path.isAbsolute(filePath)) {
 		return filePath;
 	}

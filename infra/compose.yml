@@ -5,16 +5,12 @@ services:
       dockerfile: infra/app/Dockerfile
     ports:
       - '5173:5173'
+    env_file: '.env'
     environment:
-      - OLLAMA_HOST=${OLLAMA_HOST}
-      - OLLAMA_MODEL=${OLLAMA_MODEL}
-      - MCP_PROXY_API_KEY=${MCP_PROXY_API_KEY}
-      - CHAT_DIR=/data/chat
-      - AGENT_PROFILE=monolith
       - PORT=5173
-      - PUBLIC_MODE=false
     volumes:
-      - ../data/chat:/data/chat
+      - ./app/config:/app/config
+      - ./data:/app/data
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:5173/api/healthz']
       interval: 30s
@@ -27,8 +23,6 @@ services:
       dockerfile: Dockerfile
     ports:
       - '8081:8080'
-    environment:
-      - MCP_PROXY_API_KEY=${MCP_PROXY_API_KEY}
     volumes:
       - ../data/memory:/data/data
     healthcheck:
@@ -43,8 +37,6 @@ services:
       dockerfile: Dockerfile
     ports:
       - '8082:8080'
-    environment:
-      - MCP_PROXY_API_KEY=${MCP_PROXY_API_KEY}
     volumes:
       - ../data/fetch:/data/data
     healthcheck:

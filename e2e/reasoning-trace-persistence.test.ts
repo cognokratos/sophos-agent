@@ -10,7 +10,7 @@ test.describe('Reasoning Trace & Persistence', () => {
 
 	test.beforeAll(async () => {
 		await rm(CHAT_DIR, { recursive: true, force: true });
-	})
+	});
 
 	test.beforeEach(async ({ page }) => {
 		// Clear all browser storage for a completely clean state

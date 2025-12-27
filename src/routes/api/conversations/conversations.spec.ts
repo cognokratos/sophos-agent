@@ -17,7 +17,7 @@ describe('Conversations API', () => {
 	beforeEach(() => {
 		// Reset all mocks
 		vi.resetAllMocks();
-		
+
 		// Mock process.env
 		vi.stubEnv('CHAT_DIR', mockEnv.CHAT_DIR);
 	});

@@ -1,7 +1,6 @@
-import { env } from '$env/dynamic/private';
 import { ChatOllama, type ChatOllamaCallOptions } from '@langchain/ollama';
 import { type AIMessageChunk, type BaseMessage } from '@langchain/core/messages';
-import { AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
+import { SystemMessage, AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
 import {
 	StateGraph,
 	START,
@@ -10,12 +9,14 @@ import {
 	Annotation,
 	type Messages
 } from '@langchain/langgraph';
-import type { AgentEvent } from '$lib/chat';
+import type { AgentEvent, ChatMessage } from '$lib/chat';
 import { getMCPClientService } from './mcp/client';
 import type { BaseLanguageModelInput } from '@langchain/core/language_models/base';
 import { type Runnable } from '@langchain/core/runnables';
 import { ToolNode } from '@langchain/langgraph/prebuilt';
 import type { CompiledStateGraph } from '@langchain/langgraph';
+import { getModelConfig, getSystemMessage } from '$lib/agent/config';
+import type { ConversationMessage } from '$lib/agent/persistence';
 
 type OllamaAgent = Runnable<BaseLanguageModelInput, AIMessageChunk, ChatOllamaCallOptions>;
 const MessagesStateSchema = Annotation.Root({
@@ -66,10 +67,7 @@ async function shouldContinue(state: MessagesState) {
 }
 
 async function initGraph() {
-	const model = new ChatOllama({
-		model: env.OLLAMA_MODEL ?? 'qwen3',
-		baseUrl: env.OLLAMA_HOST ?? 'http://localhost:11434'
-	});
+	const model = new ChatOllama(getModelConfig());
 
 	const client = getMCPClientService();
 	if (!client.isInitialized()) {
@@ -91,12 +89,29 @@ async function initGraph() {
 
 let graph: CompiledStateGraph<InState, OutState, Edges> | null = null;
 
-export async function* runAgent(message: string): AsyncGenerator<AgentEvent> {
+function convertMessage(message: ConversationMessage): HumanMessage | AIMessage | null {
+	switch (message.role) {
+		case 'user':
+			return new HumanMessage(message.content);
+		case 'assistant':
+			return new AIMessage(message.content);
+		default:
+			return null;
+	}
+}
+
+export async function* runAgent(
+	message: ChatMessage,
+	messages: ConversationMessage[]
+): AsyncGenerator<AgentEvent> {
 	if (!graph) {
 		graph = await initGraph();
 	}
+	const systemMessage = new SystemMessage(await getSystemMessage());
+	const chatHistory = messages.map(convertMessage).filter(Boolean);
+	const userMessage = new HumanMessage(message.content);
 	const stream = await graph.stream(
-		{ messages: [new HumanMessage(message)] },
+		{ messages: [systemMessage, ...chatHistory, userMessage] },
 		{ streamMode: 'messages', interruptBefore: [] }
 	);
 

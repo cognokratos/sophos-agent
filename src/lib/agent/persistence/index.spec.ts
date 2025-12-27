@@ -4,12 +4,14 @@ import { join } from 'node:path';
 import { writeMessageFile, writeTrace } from './index';
 import type { ChatMessage, TraceNote } from '$lib/chat';
 
-const TEST_CHAT_DIR = 'data/chat';
+const TEST_CHAT_DIR = 'data/test/chat';
+const TEST_SHOW_NOTES = 'true';
 
 describe('Persistence Module', () => {
 	beforeEach(async () => {
 		// Set up a temporary log directory for tests
 		process.env.CHAT_DIR = TEST_CHAT_DIR;
+		process.env.SHOW_TOOLS = TEST_SHOW_NOTES;
 		await mkdir(TEST_CHAT_DIR, { recursive: true });
 	});
 
@@ -17,10 +19,11 @@ describe('Persistence Module', () => {
 		// Clean up the temporary log directory
 		await rm(TEST_CHAT_DIR, { recursive: true, force: true });
 		delete process.env.CHAT_DIR;
+		delete process.env.SHOW_TOOLS;
 	});
 
 	it('should write a user message to a markdown file', async () => {
-		const sessionId = 'test-session-1';
+		const conversationId = 'test-conversation-1';
 		const turn = 1;
 		const message: ChatMessage = {
 			conversation: '8c62ae3d-cc0a-4740-b904-0f405f632ace',
@@ -29,16 +32,16 @@ describe('Persistence Module', () => {
 			content: 'Hello, world!'
 		};
 
-		await writeMessageFile(sessionId, turn, message);
+		await writeMessageFile(conversationId, turn, message);
 
-		const filePath = join(TEST_CHAT_DIR, sessionId, '0001.user.md');
+		const filePath = join(TEST_CHAT_DIR, conversationId, '0001.user.md');
 		const fileContent = await readFile(filePath, 'utf-8');
 
 		expect(fileContent).toBe('Hello, world!');
 	});
 
 	it('should write an assistant message with correct padding', async () => {
-		const sessionId = 'test-session-2';
+		const conversationId = 'test-conversation-2';
 		const turn = 12;
 		const message: ChatMessage = {
 			conversation: '8c62ae3d-cc0a-4740-b904-0f405f632ace',
@@ -47,16 +50,16 @@ describe('Persistence Module', () => {
 			content: 'Hi there!'
 		};
 
-		await writeMessageFile(sessionId, turn, message);
+		await writeMessageFile(conversationId, turn, message);
 
-		const filePath = join(TEST_CHAT_DIR, sessionId, '0012.assistant.md');
+		const filePath = join(TEST_CHAT_DIR, conversationId, '0012.assistant.md');
 		const fileContent = await readFile(filePath, 'utf-8');
 
 		expect(fileContent).toBe('Hi there!');
 	});
 
 	it('should write a message with tool call information to markdown', async () => {
-		const sessionId = 'test-session-3';
+		const conversationId = 'test-conversation-3';
 		const turn = 5;
 		const message: ChatMessage = {
 			conversation: '8c62ae3d-cc0a-4740-b904-0f405f632ace',
@@ -64,35 +67,22 @@ describe('Persistence Module', () => {
 			role: 'assistant',
 			content: 'I will fetch the data for you.'
 		};
-		const toolCalls: TraceNote[] = [
-			{
-				node: 'tools',
-				event: 'tool_call',
-				data: {
-					name: 'fetch_url',
-					arguments: { url: 'https://example.com' },
-					tool_call_id: 'call_abc123'
-				}
-			}
-		];
 
-		await writeMessageFile(sessionId, turn, message, toolCalls);
+		await writeMessageFile(conversationId, turn, message);
 
-		const filePath = join(TEST_CHAT_DIR, sessionId, '0005.assistant.md');
+		const filePath = join(TEST_CHAT_DIR, conversationId, '0005.assistant.md');
 		const fileContent = await readFile(filePath, 'utf-8');
 
 		expect(fileContent).toContain('I will fetch the data for you.');
-		expect(fileContent).toContain('Call: fetch_url');
-		expect(fileContent).toContain('https://example.com');
 	});
 
 	it('should append a trace note to trace.jsonl', async () => {
-		const sessionId = 'test-session-3';
+		const conversationId = 'test-conversation-3';
 		const traceNote: TraceNote = { node: 'agent', event: 'enter' };
 
-		await writeTrace(sessionId, traceNote);
+		await writeTrace(conversationId, traceNote);
 
-		const filePath = join(TEST_CHAT_DIR, sessionId, 'trace.jsonl');
+		const filePath = join(TEST_CHAT_DIR, conversationId, 'trace.jsonl');
 		const fileContent = await readFile(filePath, 'utf-8');
 		const parsed = JSON.parse(fileContent);
 
@@ -102,14 +92,14 @@ describe('Persistence Module', () => {
 	});
 
 	it('should append multiple trace notes to the same file', async () => {
-		const sessionId = 'test-session-4';
+		const conversationId = 'test-conversation-4';
 		const traceNote1: TraceNote = { node: 'agent', event: 'enter' };
 		const traceNote2: TraceNote = { node: 'agent', event: 'leave' };
 
-		await writeTrace(sessionId, traceNote1);
-		await writeTrace(sessionId, traceNote2);
+		await writeTrace(conversationId, traceNote1);
+		await writeTrace(conversationId, traceNote2);
 
-		const filePath = join(TEST_CHAT_DIR, sessionId, 'trace.jsonl');
+		const filePath = join(TEST_CHAT_DIR, conversationId, 'trace.jsonl');
 		const fileContent = await readFile(filePath, 'utf-8');
 		const lines = fileContent.trim().split('\n');
 

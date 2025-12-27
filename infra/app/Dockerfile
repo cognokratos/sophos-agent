@@ -30,8 +30,6 @@ COPY --from=builder /app/build build
 COPY --from=builder /app/node_modules node_modules
 COPY --from=builder /app/package.json ./
 
-COPY infra/app/config config
-
 EXPOSE 5173
 
 CMD ["node", "build"]

@@ -1,15 +1,20 @@
 import { env } from '$env/dynamic/private';
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import type { ChatRequest, ChatMessage } from '$lib/chat';
+import { type ChatMessage, formatTraceNote } from '$lib/chat';
 import { runAgent } from '$lib/agent';
-import { writeMessageFile, writeTrace } from '$lib/agent/persistence';
-import { readdir } from 'node:fs/promises';
-import { join } from 'node:path';
+import {
+	getConversationMessages,
+	getNextTurn,
+	writeMessageFile,
+	writeTrace
+} from '$lib/agent/persistence';
 import type { UUID } from 'crypto';
 import { parseUuid } from '$lib/utils';
 
-const CHAT_DIR = env.CHAT_DIR ?? 'data/chat';
+const SHOW_TOOLS = env.SHOW_TOOLS?.toLowerCase() === 'true';
+
+type EventCode = 'token' | 'trace' | 'end' | 'server-error';
 
 interface Session {
 	conversation: UUID;
@@ -25,19 +30,26 @@ interface Session {
 const sessions = new Map<UUID, Session>();
 
 export const POST: RequestHandler = async ({ request }) => {
-	const body: ChatRequest = await request.json();
-	const { message, conversation: conversationId } = body;
+	const body = await request.json();
 
-	if (!message || message.trim() === '') {
+	const message = body.message;
+	if (!message || typeof message !== 'string' || message.trim() === '') {
 		return json(
 			{ error: { code: 'BAD_REQUEST', message: 'Message is required' } },
 			{ status: 400 }
 		);
 	}
 
-	const conversation = conversationId || crypto.randomUUID();
+	const conversationStr = body.conversation;
+	if (conversationStr && typeof conversationStr !== 'string') {
+		return json(
+			{ error: { code: 'BAD_REQUEST', message: 'Invalid Conversation ID' } },
+			{ status: 400 }
+		);
+	}
+	const conversationId = conversationStr ? parseUuid(conversationStr) : crypto.randomUUID();
 
-	const session = sessions.get(conversation);
+	const session = sessions.get(conversationId);
 
 	if (session?.status === 'pending' || session?.status === 'streaming') {
 		return json(
@@ -52,7 +64,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	}
 
 	const newSession: Session = {
-		conversation,
+		conversation: conversationId,
 		status: 'pending',
 		createdAt: Date.now(),
 		updatedAt: Date.now(),
@@ -60,33 +72,23 @@ export const POST: RequestHandler = async ({ request }) => {
 		events: [],
 		tokenIndex: 0
 	};
-	sessions.set(conversation, newSession);
+	sessions.set(conversationId, newSession);
 
 	const userMessage: ChatMessage = {
-		conversation,
+		conversation: conversationId,
 		id: crypto.randomUUID(),
 		role: 'user',
 		content: message
 	};
-	const turn = await getNextTurn(conversation);
-	await writeMessageFile(conversation, turn, userMessage);
+	const turn = await getNextTurn(conversationId);
+	await writeMessageFile(conversationId, turn, userMessage);
 
-	startAgent(conversation, newSession, userMessage);
+	startAgent(conversationId, newSession, userMessage);
 
-	return json({ conversation, session: newSession });
+	return json({ conversation: conversationId, session: newSession });
 };
 
-async function getNextTurn(conversation: UUID): Promise<number> {
-	try {
-		const chatDir = join(CHAT_DIR, conversation);
-		const files = await readdir(chatDir);
-		return files.filter((f) => f.endsWith('.md')).length + 1;
-	} catch {
-		return 1; // Directory likely doesn't exist yet
-	}
-}
-
-async function startAgent(conversation: UUID, session: Session, userMessage: ChatMessage) {
+async function startAgent(conversationId: UUID, session: Session, userMessage: ChatMessage) {
 	try {
 		session.status = 'streaming';
 		session.updatedAt = Date.now();
@@ -94,66 +96,44 @@ async function startAgent(conversation: UUID, session: Session, userMessage: Cha
 		let assistantContent = '';
 		const messageId: UUID = crypto.randomUUID();
 		const assistantMessage: ChatMessage = {
-			conversation,
+			conversation: conversationId,
 			id: messageId,
 			role: 'assistant',
 			content: ''
 		};
-		const toolCallTraces: import('$lib/chat').TraceNote[] = [];
 
-		for await (const event of runAgent(userMessage.content)) {
+		const messages = await getConversationMessages(conversationId);
+		for await (const event of runAgent(userMessage, messages)) {
 			session.updatedAt = Date.now();
 			const id = String(++session.tokenIndex!);
 
 			switch (event.type) {
 				case 'token': {
 					assistantContent += event.data;
-					const tokenEventStr = `id: ${id}\nevent: token\ndata: ${JSON.stringify(event.data)}\n\n`;
-					session.events.push(tokenEventStr);
-					for (const send of session.subscribers) {
-						try {
-							send('token', event.data, id);
-						} catch {
-							/* empty */
-						}
-					}
+					sendEvent('token', id, event.data, session);
 					break;
 				}
 				case 'trace': {
-					await writeTrace(conversation, event.data);
+					await writeTrace(conversationId, event.data);
 
 					// If this is a tool-related trace event, store it for markdown persistence
-					if (event.data.event === 'tool_call' || event.data.event === 'tool_result') {
-						toolCallTraces.push(event.data);
+					if (SHOW_TOOLS) {
+						const noteMessage = formatTraceNote(event.data);
+						assistantContent += noteMessage;
+						sendEvent('token', id, noteMessage, session);
 					}
 
-					const traceEventStr = `id: ${id}\nevent: trace\ndata: ${JSON.stringify(event.data)}\n\n`;
-					session.events.push(traceEventStr);
-					for (const send of session.subscribers) {
-						try {
-							send('trace', event.data, id);
-						} catch {
-							/* empty */
-						}
-					}
+					sendEvent('trace', id, event.data, session);
 					break;
 				}
 
 				case 'end': {
 					session.status = 'done';
 					assistantMessage.content = assistantContent;
-					const nextTurn = await getNextTurn(conversation);
-					await writeMessageFile(conversation, nextTurn, assistantMessage, toolCallTraces);
+					const nextTurn = await getNextTurn(conversationId);
+					await writeMessageFile(conversationId, nextTurn, assistantMessage);
 
-					const endEventStr = `id: ${id}\nevent: end\ndata: ${JSON.stringify({ conversation, session })}\n\n`;
-					session.events.push(endEventStr);
-					for (const send of session.subscribers) {
-						try {
-							send('end', { conversation, session }, id);
-						} catch {
-							/* empty */
-						}
-					}
+					sendEvent('end', id, { conversation: conversationId, session }, session);
 					break;
 				}
 			}
@@ -168,28 +148,27 @@ async function startAgent(conversation: UUID, session: Session, userMessage: Cha
 		session.error = error;
 		session.updatedAt = Date.now();
 		const errId = String(++session.tokenIndex!);
-		const errEvent = `id: ${errId}\nevent: server-error\ndata: ${JSON.stringify(error)}\n\n`;
-		session.events.push(errEvent);
-		for (const send of session.subscribers) {
-			try {
-				send('server-error', error);
-			} catch {
-				/* empty */
-			}
+		sendEvent('server-error', errId, error, session);
+	}
+}
+
+function sendEvent(code: EventCode, id: string, data: unknown, session: Session) {
+	const eventStr = `id: ${id}\nevent: ${code}\ndata: ${JSON.stringify(data)}\n\n`;
+	session.events.push(eventStr);
+	for (const send of session.subscribers) {
+		try {
+			send(code, data, id);
+		} catch {
+			/* ignore */
 		}
 	}
 }
 
 export const GET: RequestHandler = ({ url, request }) => {
 	const conversationStr = url.searchParams.get('conversation');
-	const conversation = parseUuid(conversationStr);
+	const conversationId = parseUuid(conversationStr);
 
-	if (!sessions.has(conversation)) {
-		return new Response('event: error\ndata: {"code":"NOT_FOUND"}\n\n', {
-			headers: { 'Content-Type': 'text/event-stream' }
-		});
-	}
-	const session = sessions.get(conversation);
+	const session = sessions.get(conversationId);
 	if (!session) {
 		return new Response('event: error\ndata: {"code":"NOT_FOUND"}\n\n', {
 			headers: { 'Content-Type': 'text/event-stream' }

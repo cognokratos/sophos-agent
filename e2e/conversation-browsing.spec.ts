@@ -40,7 +40,9 @@ test.describe('Conversation Browsing', () => {
 		await page.reload();
 
 		// Check that the conversation appears in the sidebar
-		const conversationItem = page.locator('[data-testid="conversation-item"]').filter({ hasText: 'Hello, this is a test message' });
+		const conversationItem = page
+			.locator('[data-testid="conversation-item"]')
+			.filter({ hasText: 'Hello, this is a test message' });
 		await expect(conversationItem).toBeVisible();
 	});
 
@@ -65,14 +67,18 @@ test.describe('Conversation Browsing', () => {
 		await page.waitForSelector('[data-testid="assistant-message"]', { state: 'visible' });
 
 		// Go back to the first conversation
-		const firstConversation = page.locator('[data-testid="conversation-item"]').filter({ hasText: 'First message' });
+		const firstConversation = page
+			.locator('[data-testid="conversation-item"]')
+			.filter({ hasText: 'First message' });
 		await firstConversation.click();
 
 		// Wait for the conversation to load
 		await page.waitForTimeout(500);
 
 		// Check that the first conversation's messages are displayed
-		await expect(page.locator('[data-testid="user-message"]', { hasText: 'First message' })).toBeVisible();
+		await expect(
+			page.locator('[data-testid="user-message"]', { hasText: 'First message' })
+		).toBeVisible();
 	});
 
 	test('should highlight the currently active conversation', async ({ page }) => {
@@ -85,7 +91,9 @@ test.describe('Conversation Browsing', () => {
 		await page.waitForSelector('[data-testid="assistant-message"]', { state: 'visible' });
 
 		// Find the conversation item in the sidebar
-		const conversationItem = page.locator('[data-testid="conversation-item"]').filter({ hasText: 'Test message' });
+		const conversationItem = page
+			.locator('[data-testid="conversation-item"]')
+			.filter({ hasText: 'Test message' });
 
 		// Check that the conversation item has an active state indicator
 		await expect(conversationItem.locator('svg[aria-label="Active conversation"]')).toBeVisible(); // The active indicator is a checkmark SVG

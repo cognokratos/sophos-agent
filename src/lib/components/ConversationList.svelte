@@ -3,7 +3,7 @@
 		id: string;
 		title: string;
 		updatedAt: string | number | Date;
-		messageCount: number
+		messageCount: number;
 	};
 
 	const {
@@ -54,16 +54,22 @@
 	}
 </script>
 
-<div class="flex flex-col h-full" data-testid="conversation-sidebar">
-	<div class="p-4 border-b border-gray-700">
+<div class="flex h-full flex-col" data-testid="conversation-sidebar">
+	<div class="border-b border-gray-700 p-4">
 		<button
 			type="button"
 			onclick={handleNewConversation}
-			class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+			class="flex w-full items-center justify-center rounded bg-blue-600 px-4 py-2 font-bold text-white hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:outline-none"
 			aria-label="Start new conversation"
 			data-testid="new-chat-button"
 		>
-			<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				class="mr-2 h-5 w-5"
+				viewBox="0 0 20 20"
+				fill="currentColor"
+				aria-hidden="true"
+			>
 				<path
 					fill-rule="evenodd"
 					d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z"
@@ -84,54 +90,52 @@
 				</div>
 				<p class="mt-2 text-center text-gray-300">Loading…</p>
 			</div>
+		{:else if conversations.length === 0}
+			<div class="p-4 text-center text-gray-400">
+				<p>No conversations yet</p>
+			</div>
 		{:else}
-			{#if conversations.length === 0}
-				<div class="p-4 text-center text-gray-400">
-					<p>No conversations yet</p>
-				</div>
-			{:else}
-				<ul class="divide-y divide-gray-700">
-					{#each conversations as conversation (conversation.id)}
-						{@const updated = normalizeDate(conversation.updatedAt)}
-						{@const updatedLabel = updated ? formatDate(updated) : ''}
+			<ul class="divide-y divide-gray-700">
+				{#each conversations as conversation (conversation.id)}
+					{@const updated = normalizeDate(conversation.updatedAt)}
+					{@const updatedLabel = updated ? formatDate(updated) : ''}
 
-						<li>
-							<button
-								type="button"
-								onclick={() => handleSelect(conversation.id)}
-								class="w-full text-left p-3 transition-colors duration-150 flex items-start justify-between hover:bg-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
-								class:bg-gray-700={currentConversation === conversation.id}
-								aria-current={currentConversation === conversation.id ? 'true' : undefined}
-								data-testid='conversation-item'
-							>
-								<div class="flex-1 min-w-0">
-									<div class="font-medium truncate">{conversation.title}</div>
-									<div class="text-xs text-gray-400 mt-1 flex justify-between">
-										<span>{updatedLabel}</span>
-										<span>{conversation.messageCount} messages</span>
-									</div>
+					<li>
+						<button
+							type="button"
+							onclick={() => handleSelect(conversation.id)}
+							class="flex w-full items-start justify-between p-3 text-left transition-colors duration-150 hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:outline-none"
+							class:bg-gray-700={currentConversation === conversation.id}
+							aria-current={currentConversation === conversation.id ? 'true' : undefined}
+							data-testid="conversation-item"
+						>
+							<div class="min-w-0 flex-1">
+								<div class="truncate font-medium">{conversation.title}</div>
+								<div class="mt-1 flex justify-between text-xs text-gray-400">
+									<span>{updatedLabel}</span>
+									<span>{conversation.messageCount} messages</span>
 								</div>
+							</div>
 
-								{#if currentConversation === conversation.id}
-									<svg
-										xmlns="http://www.w3.org/2000/svg"
-										class="h-5 w-5 text-green-500 ml-2 flex-shrink-0"
-										viewBox="0 0 20 20"
-										fill="currentColor"
-										aria-label="Active conversation"
-									>
-										<path
-											fill-rule="evenodd"
-											d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.707a1 1 0 00-1.414-1.414L9 10.172 7.707 8.879a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-											clip-rule="evenodd"
-										/>
-									</svg>
-								{/if}
-							</button>
-						</li>
-					{/each}
-				</ul>
-			{/if}
+							{#if currentConversation === conversation.id}
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="ml-2 h-5 w-5 flex-shrink-0 text-green-500"
+									viewBox="0 0 20 20"
+									fill="currentColor"
+									aria-label="Active conversation"
+								>
+									<path
+										fill-rule="evenodd"
+										d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.707a1 1 0 00-1.414-1.414L9 10.172 7.707 8.879a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+										clip-rule="evenodd"
+									/>
+								</svg>
+							{/if}
+						</button>
+					</li>
+				{/each}
+			</ul>
 		{/if}
 	</div>
 </div>

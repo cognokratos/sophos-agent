@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import { safeJsonParse, parseUuid } from '$lib/utils';
-	import { type TraceNote, formatTraceNote } from '$lib/chat';
+	import { type TraceNote } from '$lib/chat';
 	import type { UUID } from 'crypto';
 	import ConversationList from '$lib/components/ConversationList.svelte';
-	import type { ConversationMetadata } from './api/conversations/+server';
+	import type { ConversationMetadata } from '$lib/agent/persistence';
 
 	// --- Types ---
 	type Msg = {
@@ -57,7 +57,7 @@
 
 	// Update conversation list when new conversation is created
 	$effect(() => {
-		if (conversation && !conversations.some(c => c.id === conversation)) {
+		if (conversation && !conversations.some((c) => c.id === conversation)) {
 			// If this is a new conversation not in the list, reload the list
 			loadConversations();
 		}
@@ -112,7 +112,7 @@
 				console.log(`loadConversationHistory: Found most recent conversation: ${mostRecent.id}`);
 
 				// Load the messages from the conversation
-				await loadConversation(mostRecent.id)
+				await loadConversation(mostRecent.id);
 			} else {
 				console.log('loadConversationHistory: No recent conversation found, starting fresh');
 				messages = [];
@@ -223,7 +223,6 @@
 				return;
 			}
 			traceNotes.push(traceData);
-			appendToken(formatTraceNote(traceData));
 		});
 
 		eventSource.onmessage = (e) => {
@@ -378,9 +377,9 @@
 
 <div class="flex h-screen bg-gray-900 text-white">
 	<!-- Conversation List Sidebar -->
-	<div class="w-64 bg-gray-800 border-r border-gray-700 flex flex-col">
+	<div class="flex w-64 flex-col border-r border-gray-700 bg-gray-800">
 		<ConversationList
-			conversations={conversations}
+			{conversations}
 			currentConversation={conversation}
 			loading={isLoadingConversations}
 			onItemClick={handleConversationSelect}
@@ -391,21 +390,21 @@
 			<div class="border-t border-gray-700 bg-gray-800 p-4">
 				<details>
 					<summary class="cursor-pointer font-bold" data-testid="reasoning-summary"
-					>Reasoning Trace</summary
+						>Reasoning Trace</summary
 					>
 					<div class="mt-2 space-y-1 text-sm text-gray-400" data-testid="reasoning-trace">
 						{#each traceNotes as note, i (`note_${i}`)}
 							<div>
 								<span class="rounded bg-gray-700 px-1 py-0.5 font-mono text-xs"
-								>{note.event.toUpperCase()}</span
+									>{note.event.toUpperCase()}</span
 								>
 								<span class="ml-2 font-semibold">{note.node}</span>
 								{#if note.data}
-									<ul class="ml-4 mt-2 font-mono text-xs">
+									<ul class="mt-2 ml-4 font-mono text-xs">
 										{#each Object.entries(note.data ?? {}) as [key, value], i (`note_entry_${key}_${i}`)}
 											{#if String(value).length < 20}
 												<li>
-													<span class="bg-blue-800 rounded px-1 py-0.5">* {key}: {value}</span>
+													<span class="rounded bg-blue-800 px-1 py-0.5">* {key}: {value}</span>
 												</li>
 											{/if}
 										{/each}
@@ -420,9 +419,9 @@
 	</div>
 
 	<!-- Main Chat Area -->
-	<div class="flex-1 flex flex-col">
+	<div class="flex flex-1 flex-col">
 		<header class="bg-gray-800 p-4 shadow-md">
-			<div class="flex justify-between items-center">
+			<div class="flex items-center justify-between">
 				<h1 class="text-2xl font-bold">Sophos Agent</h1>
 				{#if isStreaming}
 					<h3 class="pt-2 text-center text-sm text-gray-200" data-testid="status-responding">
@@ -430,7 +429,10 @@
 					</h3>
 				{/if}
 				<h2 class="text-sm text-gray-400">
-					{conversation ? 'Current: ' + (conversations.find(c => c.id === conversation)?.title || conversation) : 'New conversation'}
+					{conversation
+						? 'Current: ' +
+							(conversations.find((c) => c.id === conversation)?.title || conversation)
+						: 'New conversation'}
 				</h2>
 			</div>
 		</header>
