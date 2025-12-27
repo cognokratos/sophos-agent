@@ -16,8 +16,7 @@ sofos-agent/
 │   └── routes/
 │   │   └── api/
 │   │       ├── chat/+server.ts   # POST /api/chat (SSE + fallback)
-│   │       ├── models/+server.ts # GET /api/models (Ollama proxy)
-│   │       ├── logs/[sessionId]/+server.ts # GET logs
+│   │       ├── conversations/[conversationId]/+server.ts # GET conversations
 │   │       ├── healthz/+server.ts # liveness
 │   │       └── readyz/+server.ts # readiness (ollama + model)
 │   ├── app.css                       # tailwind css
@@ -36,7 +35,7 @@ sofos-agent/
 ├── data/
 │   ├── memory/                        # Memory MCP data
 │   ├── fetch/                         # Fetch MCP data
-│   └── logs/                          # Markdown turns + trace.jsonl (bind-mounted)
+│   └── chat/                          # Markdown turns + trace.jsonl (bind-mounted)
 │
 ├── scripts/
 │   ├── setup.sh                       # warmup images & model, sanity checks
@@ -45,7 +44,8 @@ sofos-agent/
 │   └── test.sh                        # smoke tests (health, models)
 │
 ├── docs/
-│   ├── architecture.md                # canonical architecture
+│   ├── stories                        # User Stories
+│   ├── prd                            # Product Requirements & Epics
 │   └── architecture
 │       ├── source-tree.md             # (this file)
 │       ├── tech-stack.md
@@ -63,21 +63,3 @@ sofos-agent/
 - `src/lib/agent/` — Graph orchestration with LangGraph.js; nodes emit TraceNotes.
 - `src/lib/mcp/` — `MultiServerMCPClient` and core MCP adapter logic; responsible for connecting to and retrieving tools from MCP servers.
 - `src/lib/persistence/` — Markdown + JSONL writers; abstracted behind a small interface to allow SQLite later.
-
-## Compose profiles
-
-- `warmup` — pre-pull `ollama` and the default model (e.g., `mistral`).
-- `publish` — opt-in; binds services to `0.0.0.0` for demos.
-- `split` — runs a separate `agent` container; same HTTP contracts.
-
-## Environment variables (mirrored in `.env.example`)
-
-```
-OLLAMA_HOST=http://ollama:11434
-OLLAMA_MODEL=mistral
-MCP_PROXY_API_KEY=''
-CHAT_DIR=/data/chat
-AGENT_PROFILE=monolith        # or: split
-PORT=5173
-PUBLIC_MODE=false             # true => publish profile
-```

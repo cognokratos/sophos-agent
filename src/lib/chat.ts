@@ -9,14 +9,11 @@ export interface ChatMessage {
 	content: string;
 }
 
-export interface ChatRequest {
-	message: string;
-	conversation: UUID;
-}
-
 export interface TraceNote {
 	node: string;
-	event: 'enter' | 'leave' | 'stream' | 'error' | 'tool' | 'tool_call' | 'tool_result';
+	name: string;
+	turn: number;
+	event: 'enter' | 'leave' | 'stream' | 'error' | 'tool' | 'call' | 'result';
 	data?: Record<string, unknown>;
 }
 
@@ -26,10 +23,10 @@ export type AgentEvent =
 	| { type: 'end' };
 
 /**
- * Formats TraceNote information into a markdown representation.
+ * Formats TraceNote information into a Markdown representation.
  */
 export function formatTraceNote(traceNote: TraceNote): string {
-	if (traceNote.event === 'tool_call') {
+	if (traceNote.event === 'call') {
 		const { name, tool_call_id, arguments: args } = traceNote.data || {};
 		const toolName = name || 'unknown';
 		const callId = tool_call_id || 'unknown';
@@ -40,7 +37,7 @@ export function formatTraceNote(traceNote: TraceNote): string {
 		}
 		return `---\n > # Call: ${toolName} (${callId})\n > ${message}\n---\n\n`;
 	}
-	if (traceNote.event === 'tool_result') {
+	if (traceNote.event === 'result') {
 		const { name, tool_call_id, result } = traceNote.data || {};
 		const toolName = name || 'unknown';
 		const callId = tool_call_id || 'unknown';

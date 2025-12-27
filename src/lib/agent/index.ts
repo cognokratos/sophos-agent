@@ -1,7 +1,6 @@
-import { env } from '$env/dynamic/private';
 import { ChatOllama, type ChatOllamaCallOptions } from '@langchain/ollama';
 import { type AIMessageChunk, type BaseMessage } from '@langchain/core/messages';
-import { AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
+import { SystemMessage, AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
 import {
 	StateGraph,
 	START,
@@ -10,12 +9,14 @@ import {
 	Annotation,
 	type Messages
 } from '@langchain/langgraph';
-import type { AgentEvent } from '$lib/chat';
+import type { AgentEvent, ChatMessage } from '$lib/chat';
 import { getMCPClientService } from './mcp/client';
 import type { BaseLanguageModelInput } from '@langchain/core/language_models/base';
 import { type Runnable } from '@langchain/core/runnables';
 import { ToolNode } from '@langchain/langgraph/prebuilt';
 import type { CompiledStateGraph } from '@langchain/langgraph';
+import { getModelConfig, getSystemMessage } from '$lib/agent/config';
+import type { ConversationMessage } from '$lib/agent/persistence';
 
 type OllamaAgent = Runnable<BaseLanguageModelInput, AIMessageChunk, ChatOllamaCallOptions>;
 const MessagesStateSchema = Annotation.Root({
@@ -66,10 +67,7 @@ async function shouldContinue(state: MessagesState) {
 }
 
 async function initGraph() {
-	const model = new ChatOllama({
-		model: env.OLLAMA_MODEL ?? 'qwen3',
-		baseUrl: env.OLLAMA_HOST ?? 'http://localhost:11434'
-	});
+	const model = new ChatOllama(getModelConfig());
 
 	const client = getMCPClientService();
 	if (!client.isInitialized()) {
@@ -91,35 +89,62 @@ async function initGraph() {
 
 let graph: CompiledStateGraph<InState, OutState, Edges> | null = null;
 
-export async function* runAgent(message: string): AsyncGenerator<AgentEvent> {
+function convertMessage(message: ConversationMessage): HumanMessage | AIMessage | null {
+	switch (message.role) {
+		case 'user':
+			return new HumanMessage(message.content);
+		case 'assistant':
+			return new AIMessage(message.content);
+		default:
+			return null;
+	}
+}
+
+export async function* runAgent(
+	currentTurn: number,
+	message: ChatMessage,
+	messages: ConversationMessage[]
+): AsyncGenerator<AgentEvent> {
 	if (!graph) {
 		graph = await initGraph();
 	}
+	const systemMessage = new SystemMessage(await getSystemMessage());
+	const chatHistory = messages.map(convertMessage).filter(Boolean);
+	const userMessage = new HumanMessage(message.content);
 	const stream = await graph.stream(
-		{ messages: [new HumanMessage(message)] },
+		{ messages: [systemMessage, ...chatHistory, userMessage] },
 		{ streamMode: 'messages', interruptBefore: [] }
 	);
 
 	let currentStep = -1;
 	let currentNode = '';
+	let currentName = '';
 
 	for await (const [msg, meta] of stream) {
-		const nodeName = meta.langgraph_node;
-		const step = meta.langgraph_step;
+		const node: string = meta.langgraph_node;
+		const step: number = meta.langgraph_step;
+		const name: string = getName(msg, meta);
 
 		// Handle node/step transitions
 		if (step > currentStep) {
-			if (currentNode && currentNode !== nodeName) {
-				yield { type: 'trace', data: { node: currentNode, event: 'leave' } };
+			if (currentNode && currentNode !== node) {
+				yield {
+					type: 'trace',
+					data: { turn: currentTurn, name: currentName, node: currentNode, event: 'leave' }
+				};
 			}
 
 			currentStep = step;
-			currentNode = nodeName;
+			currentNode = node;
+			currentName = name;
 
-			yield { type: 'trace', data: { node: nodeName, event: 'enter' } };
+			yield {
+				type: 'trace',
+				data: { turn: currentTurn, name: currentName, node: currentNode, event: 'enter' }
+			};
 		}
 
-		if (nodeName === nodes.AGENT && AIMessage.isInstance(msg)) {
+		if (node === nodes.AGENT && AIMessage.isInstance(msg)) {
 			if (msg.content) {
 				yield {
 					type: 'token',
@@ -132,8 +157,10 @@ export async function* runAgent(message: string): AsyncGenerator<AgentEvent> {
 					yield {
 						type: 'trace',
 						data: {
+							turn: currentTurn,
+							name: currentName,
 							node: 'tools',
-							event: 'tool_call',
+							event: 'call',
 							data: {
 								name: toolCall.name,
 								arguments: toolCall.args,
@@ -145,13 +172,15 @@ export async function* runAgent(message: string): AsyncGenerator<AgentEvent> {
 			}
 		}
 
-		if (nodeName === nodes.TOOLS && ToolMessage.isInstance(msg)) {
+		if (node === nodes.TOOLS && ToolMessage.isInstance(msg)) {
 			if (msg.name && msg.tool_call_id) {
 				yield {
 					type: 'trace',
 					data: {
+						turn: currentTurn,
+						name: currentName,
 						node: 'tools',
-						event: 'tool_result',
+						event: 'result',
 						data: {
 							name: msg.name,
 							tool_call_id: msg.tool_call_id,
@@ -165,8 +194,21 @@ export async function* runAgent(message: string): AsyncGenerator<AgentEvent> {
 
 	// Final leave + end
 	if (currentNode) {
-		yield { type: 'trace', data: { node: currentNode, event: 'leave' } };
+		yield {
+			type: 'trace',
+			data: { turn: currentTurn, name: currentName, node: currentNode, event: 'leave' }
+		};
 	}
 
 	yield { type: 'end' };
+}
+
+function getName(msg: BaseMessage, meta: Record<string, unknown>): string {
+	if (AIMessage.isInstance(msg)) {
+		return meta.ls_model_name as string;
+	}
+	if (ToolMessage.isInstance(msg)) {
+		return msg.name!;
+	}
+	return '';
 }

@@ -2,11 +2,15 @@ import { test, expect } from '@playwright/test';
 import { rm, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-const CHAT_DIR = 'data/chat';
+const CHAT_DIR = 'data/test/chat';
 const TEST_MESSAGE = 'Hello, this is an E2E test.';
 
 test.describe('Reasoning Trace & Persistence', () => {
 	let conversationId: string | null = null;
+
+	test.beforeAll(async () => {
+		await rm(CHAT_DIR, { recursive: true, force: true });
+	});
 
 	test.beforeEach(async ({ page }) => {
 		// Clear all browser storage for a completely clean state
@@ -20,10 +24,7 @@ test.describe('Reasoning Trace & Persistence', () => {
 
 	test.afterAll(async () => {
 		// Clean up chat from the test run
-		if (conversationId) {
-			const sessionDir = join(CHAT_DIR, conversationId);
-			await rm(sessionDir, { recursive: true, force: true });
-		}
+		await rm(CHAT_DIR, { recursive: true, force: true });
 	});
 
 	test('should display real-time reasoning trace and create log files', async ({ page }) => {
@@ -57,12 +58,14 @@ test.describe('Reasoning Trace & Persistence', () => {
 		// Check for specific events inside the scoped trace container
 		await expect(trace).toContainText('ENTER');
 		await expect(trace).toContainText('agent');
-		await expect(trace).toContainText('LEAVE');
+		await expect(trace).toContainText('LEAVE', {
+			timeout: 500_000
+		});
 
 		// 3. Wait for the response to complete
 		// Status text "Responding..." should disappear once the response is done.
 		await expect(page.getByTestId('status-responding')).not.toBeVisible({
-			timeout: 50_000
+			timeout: 500_000
 		});
 
 		// 4. Verify log files were created

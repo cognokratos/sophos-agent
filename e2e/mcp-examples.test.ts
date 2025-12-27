@@ -1,5 +1,9 @@
 // mcp-examples.test.ts
 import { expect, test, type Page } from '@playwright/test';
+import { rm } from 'node:fs/promises';
+
+const CHAT_DIR = 'data/test/chat';
+const MEMORY_DIR = 'data/test/memory';
 
 // Helpers
 async function sendMessage(page: Page, text: string) {
@@ -37,6 +41,11 @@ async function expandTraceAndExpectToolCall(page: Page) {
 
 // Suite
 test.describe('MCP Examples Test', () => {
+	test.beforeAll(async () => {
+		await rm(CHAT_DIR, { recursive: true, force: true });
+		await rm(MEMORY_DIR, { recursive: true, force: true });
+	});
+
 	test.beforeEach(async ({ page }) => {
 		// Clear all browser storage for a completely clean state
 		await page.addInitScript(() => {
@@ -45,6 +54,12 @@ test.describe('MCP Examples Test', () => {
 		});
 
 		await page.goto('/');
+	});
+
+	test.afterAll(async () => {
+		// Clean up chat from the test run
+		await rm(CHAT_DIR, { recursive: true, force: true });
+		await rm(MEMORY_DIR, { recursive: true, force: true });
 	});
 
 	test('Memory MCP example works correctly and Tool calls appear in reasoning trace', async ({
