@@ -4,5 +4,5 @@ test('home page has expected h1', async ({ page }) => {
 	await page.goto('/');
 	const title = page.locator('h1');
 	await expect(title).toBeVisible();
-	await expect(title).toHaveText('Sophos Agent');
+	await expect(title).toHaveText('Σοφός Agent');
 });

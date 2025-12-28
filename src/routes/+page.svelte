@@ -408,7 +408,7 @@
 	<div class="flex flex-1 flex-col">
 		<header class="bg-gray-800 p-5 shadow-md">
 			<div class="flex items-center justify-between">
-				<h1 class="text-2xl font-bold">Sophos Agent</h1>
+				<h1 class="text-2xl font-bold">Σοφός Agent</h1>
 				{#if isStreaming}
 					<h3 class="pt-2 text-center text-sm text-gray-200" data-testid="status-responding">
 						Responding...

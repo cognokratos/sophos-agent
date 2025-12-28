@@ -1,4 +1,4 @@
-# **Sophos Agent**: Local-First Agentic Chat System
+# **Σοφός Agent**: Local-First Agentic Chat System
 
 **A Minimalist, Secure, Fully Local AI Agent Architecture (Educational Project)**
 
