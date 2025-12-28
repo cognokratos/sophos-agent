@@ -1,9 +1,7 @@
 import { appendFile, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { type ChatMessage, type ChatRole, type TraceNote } from '$lib/chat';
+import { type ChatMessage, type TraceNote } from '$lib/chat';
 import { getChatDir } from '$lib/agent/persistence/config';
-import type { UUID } from 'crypto';
-import { json } from '@sveltejs/kit';
 
 export interface ConversationMetadata {
 	id: string; // Using string as conversation IDs might not be UUIDs
@@ -194,7 +192,7 @@ export async function writeMessageFile(
 ): Promise<void> {
 	const conversationDir = await ensureConversationDir(conversationId);
 	const turnStr = String(turn).padStart(4, '0');
-	const role: ChatRole = message.role;
+	const role = message.role;
 	const filePath = join(conversationDir, `${turnStr}.${role}.md`);
 	await writeFile(filePath, message.content, 'utf-8');
 }

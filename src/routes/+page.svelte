@@ -1,11 +1,13 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import { safeJsonParse, parseUuid } from '$lib/utils';
-	import { type TraceNote } from '$lib/chat';
+	import { type ChatError, type TraceNote } from '$lib/chat';
 	import type { UUID } from 'crypto';
 	import ConversationList from '$lib/components/ConversationList.svelte';
 	import type { ConversationMetadata } from '$lib/agent/persistence';
 	import TraceNoteList from '$lib/components/TraceNoteList.svelte';
+
+	import bg from '$lib/assets/bg.webp?enhanced';
 
 	// --- Types ---
 	type Msg = {
@@ -156,7 +158,7 @@
 			console.log(
 				`loadConversation: Loaded ${loadedMessages.length} messages from conversation: ${conversation}`
 			);
-			if (last?.role === 'user') {
+			if (conversation && last?.role === 'user') {
 				resumeSession(conversation);
 			}
 		} catch (err) {
@@ -212,7 +214,7 @@
 		};
 
 		eventSource.addEventListener('token', (e) => {
-			const data = safeJsonParse(e.data, null);
+			const data = safeJsonParse<string>(e.data, '');
 			if (data) {
 				appendToken(data);
 			}
@@ -233,6 +235,13 @@
 
 		eventSource.addEventListener('end', (e) => {
 			console.log('SSE event: end. Finalizing stream.', e.lastEventId);
+			finalizeStream();
+		});
+
+		eventSource.addEventListener('chat-error', (e) => {
+			console.error('SSE event: chat error', e);
+			const err = safeJsonParse<ChatError | null>(e.data, null);
+			error = err ?? { code: 'UNKNOWN_ERROR', message: 'Unknown error.' };
 			finalizeStream();
 		});
 
@@ -324,8 +333,9 @@
 
 			// Update conversation list to reflect the new conversation
 			await loadConversations();
-
-			startSse(conversation);
+			if (conversation) {
+				startSse(conversation);
+			}
 		} catch (e) {
 			clearTimeout(timeoutId);
 			console.error('handleSubmit: Fetch failed:', e);
@@ -353,7 +363,10 @@
 	function handleConversationSelect(id: string) {
 		console.log(`handleConversationSelect: Selected conversation: ${id}`);
 		clearChatState();
-		loadConversation(parseUuid(id)); // Parse to UUID for internal use
+		const conversationId = parseUuid(id);
+		if (conversationId) {
+			loadConversation(conversationId);
+		}
 	}
 
 	function clearChatState() {
@@ -376,7 +389,7 @@
 	}
 </script>
 
-<div class="flex h-screen bg-gray-900 text-white">
+<div class="flex h-screen bg-[#010b18] text-white">
 	<!-- Conversation List Sidebar -->
 	<div class="flex w-64 flex-col border-r border-gray-700 bg-gray-800">
 		<ConversationList
@@ -386,7 +399,6 @@
 			onItemClick={handleConversationSelect}
 			onNewConversation={startNewConversation}
 		/>
-
 		{#if traceNotes.length > 0}
 			<TraceNoteList {traceNotes} />
 		{/if}
@@ -394,7 +406,7 @@
 
 	<!-- Main Chat Area -->
 	<div class="flex flex-1 flex-col">
-		<header class="bg-gray-800 p-4 shadow-md">
+		<header class="bg-gray-800 p-5 shadow-md">
 			<div class="flex items-center justify-between">
 				<h1 class="text-2xl font-bold">Sophos Agent</h1>
 				{#if isStreaming}
@@ -411,56 +423,75 @@
 			</div>
 		</header>
 
-		<main bind:this={chatContainer} class="flex-1 overflow-y-auto p-4">
-			{#if isLoadingHistory}
-				<div class="flex h-full flex-col items-center justify-center">
-					<div class="mb-4 flex items-center justify-center space-x-2">
-						<span class="h-3 w-3 animate-pulse rounded-full bg-blue-500"></span>
-						<span class="h-3 w-3 animate-pulse rounded-full bg-blue-500 [animation-delay:0.2s]"
-						></span>
-						<span class="h-3 w-3 animate-pulse rounded-full bg-blue-500 [animation-delay:0.4s]"
-						></span>
+		<main bind:this={chatContainer} class="relative flex-1 overflow-y-auto p-4">
+			<!-- background layer -->
+			<div class="absolute inset-0 z-0 h-full">
+				<enhanced:img
+					src={bg}
+					alt="Sophos Agent Background"
+					aria-hidden="true"
+					sizes="100vw"
+					class="h-full w-full object-cover"
+				/>
+				<!-- optional dark overlay for readability -->
+				<div class="absolute inset-0 bg-black/70"></div>
+			</div>
+
+			<!-- foreground content -->
+			<div class="relative z-10">
+				<!-- everything that was already inside main goes here -->
+				{#if isLoadingHistory}
+					<div class="flex h-full flex-col items-center justify-center">
+						<div class="mb-4 flex items-center justify-center space-x-2">
+							<span class="h-3 w-3 animate-pulse rounded-full bg-blue-500"></span>
+							<span class="h-3 w-3 animate-pulse rounded-full bg-blue-500 [animation-delay:0.2s]"
+							></span>
+							<span class="h-3 w-3 animate-pulse rounded-full bg-blue-500 [animation-delay:0.4s]"
+							></span>
+						</div>
+						<p class="text-gray-400">Loading conversation...</p>
 					</div>
-					<p class="text-gray-400">Loading conversation...</p>
-				</div>
-			{:else}
-				{#if error}
-					<div class="mb-4 rounded-lg bg-red-500 p-4 text-white">
-						<p class="font-bold">Error: {error.code}</p>
-						<p>{error.message}</p>
+				{:else}
+					{#if error}
+						<div class="mb-4 rounded-lg bg-red-500 p-4 text-white">
+							<p class="font-bold">Error: {error.code}</p>
+							<p>{error.message}</p>
+						</div>
+					{/if}
+					<div class="space-y-4">
+						{#each messages as message (message.id)}
+							{#if message.content}
+								<div class={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+									<div
+										class={`w-fit max-w-5/6 rounded-lg px-4 py-2 ${
+											message.role === 'user' ? 'bg-blue-600 text-right' : 'bg-gray-700'
+										}`}
+									>
+										<p
+											class="font-sans whitespace-pre-wrap"
+											data-testid={message.role === 'user' ? 'user-message' : 'assistant-message'}
+										>
+											{message.content.trim().replaceAll('<br>', '\n')}
+										</p>
+									</div>
+								</div>
+							{:else}
+								<div
+									class="flex w-fit items-center justify-start space-x-1 rounded-lg bg-gray-700 px-4 py-2"
+								>
+									<span class="h-2 w-2 animate-pulse rounded-full bg-blue-500"></span>
+									<span
+										class="h-2 w-2 animate-pulse rounded-full bg-blue-500 [animation-delay:0.2s]"
+									></span>
+									<span
+										class="h-2 w-2 animate-pulse rounded-full bg-blue-500 [animation-delay:0.4s]"
+									></span>
+								</div>
+							{/if}
+						{/each}
 					</div>
 				{/if}
-				<div class="space-y-4">
-					{#each messages as message (message.id)}
-						{#if message.content}
-							<div class={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-								<div
-									class={`w-fit max-w-5/6 rounded-lg px-4 py-2 ${
-										message.role === 'user' ? 'bg-blue-600 text-right' : 'bg-gray-700'
-									}`}
-								>
-									<p
-										class="font-sans whitespace-pre-wrap"
-										data-testid={message.role === 'user' ? 'user-message' : 'assistant-message'}
-									>
-										{message.content.trim().replaceAll('<br>', '\n')}
-									</p>
-								</div>
-							</div>
-						{:else}
-							<div
-								class="flex w-fit items-center justify-start space-x-1 rounded-lg bg-gray-700 px-4 py-2"
-							>
-								<span class="h-2 w-2 animate-pulse rounded-full bg-blue-500"></span>
-								<span class="h-2 w-2 animate-pulse rounded-full bg-blue-500 [animation-delay:0.2s]"
-								></span>
-								<span class="h-2 w-2 animate-pulse rounded-full bg-blue-500 [animation-delay:0.4s]"
-								></span>
-							</div>
-						{/if}
-					{/each}
-				</div>
-			{/if}
+			</div>
 		</main>
 
 		<footer class="bg-gray-800 p-4">

@@ -3,21 +3,23 @@
 ## 7.1 Monorepo Layout
 
 ```
-apps/web (SvelteKit + Agent)
-infra/ (compose, Dockerfiles, profiles) • data/chat/ • scripts/ • docs/
+src/        (SvelteKit + Agent)
+infra/      (compose, Dockerfiles, profiles)
+data/chat/  (Chat data)
+scripts/    (DevOps)
+docs/       (Documentation)
 ```
 
 **Why:** simple onboarding; aligns with Team Fullstack workflow & templates.
 
 ## 7.2 One-Command Setup
 
-`make setup` → copy `.env`, pull images, **warm up** default model, start stack, open UI. **Profiles:** `warmup`, `publish`, `split`.
+`make start` → Start Agentic Chat and MCP servers.
 
 ## 7.3 Testing & QA
 
 - **Unit:** Vitest for graph nodes & adapters.
 - **Integration:** Playwright for chat flow.
-- **Compose smoke:** ping `/api/models`.
-- **CI:** GitHub Actions; version pinning. (Education-grade, transparent.)
+- **Compose smoke:** Chat & MCP server health checks.
 
 ---

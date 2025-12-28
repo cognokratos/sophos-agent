@@ -3,6 +3,10 @@ data
 test-results
 node_modules
 
+.bmad-core
+.claude
+.gemini
+.qwen
 .idea
 
 # Output
