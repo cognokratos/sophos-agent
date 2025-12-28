@@ -2,6 +2,8 @@
 
 **A Minimalist, Secure, Fully Local AI Agent Architecture (Educational Project)**
 
+![](docs/bg.png)
+
 ---
 
 ## 📌 Overview
@@ -10,12 +12,12 @@ This repository is an **educational initiative** designed to teach you how to bu
 
 Unlike cloud-dependent chatbot frameworks, this project prioritizes:
 
-* **Local-only execution**
-* **Maximum security & auditability**
-* **Explicit agent control loops**
-* **Minimal abstractions**
-* **Zero SaaS dependencies**
-* **Deep learner understanding over convenience**
+- **Local-only execution**
+- **Maximum security & auditability**
+- **Explicit agent control loops**
+- **Minimal abstractions**
+- **Zero SaaS dependencies**
+- **Deep learner understanding over convenience**
 
 By working through this repository, students will learn how modern agentic systems are actually constructed — not just how to call an API.
 
@@ -25,18 +27,18 @@ By working through this repository, students will learn how modern agentic syste
 
 By the end of this project, you will understand how to:
 
-* Design and implement an **agent loop** (observe → think → act → reflect)
-* Build a **local chat system** without sending data to third-party services
-* Reason about **security boundaries**, threat models, and attack surfaces
-* Structure an AI system for **extensibility and long-term ownership**
-* Operate AI software as **infrastructure**, not a toy demo
+- Design and implement an **agent loop** (observe → think → act → reflect)
+- Build a **local chat system** without sending data to third-party services
+- Reason about **security boundaries**, threat models, and attack surfaces
+- Structure an AI system for **extensibility and long-term ownership**
+- Operate AI software as **infrastructure**, not a toy demo
 
 This project is intended for:
 
-* Advanced beginners to intermediate developers
-* Security-minded engineers
-* AI practitioners who want full system ownership
-* Students who want to understand *why* frameworks work, not just *how*
+- Advanced beginners to intermediate developers
+- Security-minded engineers
+- AI practitioners who want full system ownership
+- Students who want to understand _why_ frameworks work, not just _how_
 
 ---
 
@@ -50,27 +52,27 @@ All computation, inference, memory, and orchestration are designed to run **enti
 
 Every abstraction is justified. If something exists, it exists because:
 
-* It is necessary
-* It is inspectable
-* It is teachable
+- It is necessary
+- It is inspectable
+- It is teachable
 
 ### Agentic (Not Just Chat)
 
 This is not a stateless chatbot. The system is built around:
 
-* Persistent agent identity
-* Explicit reasoning phases
-* Tool invocation
-* Memory and reflection loops
+- Persistent agent identity
+- Explicit reasoning phases
+- Tool invocation
+- Memory and reflection loops
 
 ### Security-Driven
 
 Security is not an afterthought. The repository explicitly documents:
 
-* Trust boundaries
-* Threat models
-* Risk mitigations
-* Non-functional requirements
+- Trust boundaries
+- Threat models
+- Risk mitigations
+- Non-functional requirements
 
 ---
 
@@ -107,19 +109,19 @@ This mirrors how real production systems are designed.
 
 At a high level, the system consists of:
 
-* **Chat Interface Layer**
-* **Agent Runtime**
-* **Tool Invocation Layer**
-* **Local Memory / State**
-* **Model Execution (local inference)**
-* **Control & Policy Enforcement**
+- **Chat Interface Layer**
+- **Agent Runtime**
+- **Tool Invocation Layer**
+- **Local Memory / State**
+- **Model Execution (local inference)**
+- **Control & Policy Enforcement**
 
 There is a **clear separation** between:
 
-* User input
-* Agent reasoning
-* Action execution
-* State mutation
+- User input
+- Agent reasoning
+- Action execution
+- State mutation
 
 This separation is what enables security, testability, and extensibility.
 
@@ -145,11 +147,11 @@ The security posture is documented in detail under `docs/architecture/9-security
 
 Key principles include:
 
-* No implicit network access
-* Explicit trust boundaries
-* Local secrets management
-* Defense-in-depth assumptions
-* Human-readable policy decisions
+- No implicit network access
+- Explicit trust boundaries
+- Local secrets management
+- Defense-in-depth assumptions
+- Human-readable policy decisions
 
 Students are encouraged to **challenge and improve** the security model as an exercise.
 
@@ -159,11 +161,11 @@ Students are encouraged to **challenge and improve** the security model as an ex
 
 As you learn, try:
 
-* Adding a new tool with strict input validation
-* Introducing a memory summarization loop
-* Implementing a sandboxed execution environment
-* Creating a second agent with a different role
-* Simulating adversarial prompts
+- Adding a new tool with strict input validation
+- Introducing a memory summarization loop
+- Implementing a sandboxed execution environment
+- Creating a second agent with a different role
+- Simulating adversarial prompts
 
 These exercises will deepen your understanding of agentic systems.
 
@@ -175,23 +177,23 @@ This is an **active educational architecture**, not a finished product.
 
 The roadmap explicitly documents:
 
-* Planned improvements
-* Known limitations
-* Design debt
-* Future agent capabilities
+- Planned improvements
+- Known limitations
+- Design debt
+- Future agent capabilities
 
 Students are encouraged to fork, modify, and experiment.
 
 ---
 
-## 🧠 Who This Project Is *Not* For
+## 🧠 Who This Project Is _Not_ For
 
 This project is **not** ideal if you want:
 
-* A plug-and-play chatbot
-* Cloud-hosted convenience
-* Hidden abstractions
-* “Magic” agent frameworks
+- A plug-and-play chatbot
+- Cloud-hosted convenience
+- Hidden abstractions
+- “Magic” agent frameworks
 
 This project is about **learning, control, and ownership**.
 
@@ -201,9 +203,9 @@ This project is about **learning, control, and ownership**.
 
 This repository emphasizes **long-term ownership artifacts**:
 
-* Clear documentation
-* Explicit decisions
-* Reproducible environments
+- Clear documentation
+- Explicit decisions
+- Reproducible environments
 
 You should be able to understand and operate this system **years from now**, without vendor lock-in.
 

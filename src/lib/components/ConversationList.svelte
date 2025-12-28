@@ -1,4 +1,6 @@
 <script lang="ts">
+	import logo from '$lib/assets/logo.webp?enhanced';
+
 	type Conversation = {
 		id: string;
 		title: string;
@@ -79,7 +81,9 @@
 			New Chat
 		</button>
 	</div>
-
+	<div class="p-2">
+		<enhanced:img src={logo} alt="Sophos Agent logo" class="rounded-2xl shadow shadow-black" />
+	</div>
 	<div class="flex-1 overflow-y-auto" aria-busy={loading}>
 		{#if loading}
 			<div class="p-4" role="status" aria-live="polite">
