@@ -104,4 +104,4 @@ With the basic chat functionality in place, users need the ability to manage the
 
 **Epic Owner:** Product Owner
 **Contributors:** Fullstack Team
-**Status:** Draft
+**Status:** Done

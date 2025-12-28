@@ -3,7 +3,6 @@
 ## Table of Contents
 
 - [Софос Agent — Full-Stack Architecture Document](#table-of-contents)
-  - [Change Log](./change-log.md)
   - [1) Introduction](./1-introduction.md)
     - [Starter Template or Existing Project](./1-introduction.md#starter-template-or-existing-project)
   - [2) High-Level Architecture](./2-high-level-architecture.md)

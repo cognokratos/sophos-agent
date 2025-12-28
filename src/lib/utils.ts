@@ -8,12 +8,11 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-
  * @param input The string to parse.
  * @param input
  */
-export function parseUuid(input: string | null): UUID {
+export function parseUuid(input: string | null): UUID | null {
 	const s = input?.trim() ?? '';
 	if (!UUID_REGEX.test(s)) {
-		throw new TypeError(`Invalid UUID: "${input}"`);
+		return null;
 	}
-	// Optionally normalize casing:
 	return s.toLowerCase() as UUID;
 }
 

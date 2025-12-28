@@ -14,4 +14,3 @@
   - [9. Dependencies & Integrations](./9-dependencies-integrations.md)
   - [10. Risks & Mitigations](./10-risks-mitigations.md)
   - [11. Roadmap & Milestones](./11-roadmap-milestones.md)
-    - [✅ PRD Completion Summary](./11-roadmap-milestones.md#prd-completion-summary)

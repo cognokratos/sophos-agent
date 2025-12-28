@@ -15,19 +15,19 @@ Local-first, teaching-focused stack with transparent reasoning, one-command Dock
 
 - **Engine:** LangGraph.js (TypeScript)
 - **Pattern:** Node-based graph; policies for tool-calling; emits `TraceNote` events
-- **Contracts:** `src/lib/chat.ts` & `error.ts`
+- **Contracts:** `src/lib/chat.ts`
 
 ## LLM Runtime
 
-- **Provider:** Ollama (containerized)
-- **Default model:** `mistral` (baseline); profiles for tiny models on modest hardware
-- **Transport:** Local HTTP (`/api/generate`, `/api/tags`)
+- **Provider:** Ollama
+- **Default model:** `Qwen3` (baseline); profiles for tiny models on modest hardware
+- **Transport:** Local HTTP
 
 ## Tools (MCP)
 
 - **Servers:** Memory MCP, Fetch MCP (containers)
 - **Bridge:** `@langchain/mcp-adapters` (JS)
-- **Tool calls:** Represented as `ToolCall` in messages; surfaced as `trace` events
+- **Tools:** Represented as `Tool` messages; surfaced as `trace` events
 
 ## Persistence
 
@@ -57,7 +57,6 @@ Local-first, teaching-focused stack with transparent reasoning, one-command Dock
 ## Security posture
 
 - **Default:** Local-only binds (127.0.0.1)
-- **Profiles:** `publish` to expose ports deliberately
 - **Secrets:** Minimal; no telemetry
 
 ## Version pins (suggested minimums)

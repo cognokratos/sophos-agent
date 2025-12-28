@@ -4,7 +4,7 @@
 | :--------------- | :---------------------- | :-------------------------- |
 | Frontend         | SvelteKit + TailwindCSS | Real-time chat              |
 | Agent Engine     | LangGraph.js            | Orchestration graph         |
-| LLM              | Ollama (Mistral)        | Local inference             |
+| LLM              | Ollama (Qwen3)          | Local inference             |
 | MCP Servers      | Memory, Fetch           | Extendable tools            |
 | Adapters         | @langchain/mcp-adapters | Tool bridging               |
 | Containerization | Docker Compose          | Multi-service orchestration |

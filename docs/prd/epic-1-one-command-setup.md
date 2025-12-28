@@ -1,7 +1,7 @@
 # Epic 1: One-Command Local Setup & First Agent Chat
 
 **Epic Goal**
-Enable newcomers to clone/pull, run a single command, open the app, and complete a first conversation with the agent—seeing reasoning traces and markdown persistence—all powered by local LLMs (Ollama + Mistral). This validates the core architecture end-to-end and fulfills the PRD’s “AI Systems Classroom in a Box” promise.
+Enable newcomers to clone/pull, run a single command, open the app, and complete a first conversation with the agent—seeing reasoning traces and markdown persistence—all powered by local LLMs (Ollama + Qwen3). This validates the core architecture end-to-end and fulfills the PRD’s “AI Systems Classroom in a Box” promise.
 
 ---
 
@@ -21,7 +21,7 @@ and aligns with success metrics around setup speed and reasoning visibility.
 ## In Scope
 
 - **Docker Compose** brings up all services (SvelteKit UI, LangGraph.js engine, MCP tool servers, Ollama runtime).
-- **First-run model pull** with friendly UX if Mistral model missing.
+- **First-run model pull** with friendly UX if Qwen3 model missing.
 - **Minimal chat UI** (SvelteKit + Tailwind) wired to agent engine.
 - **Reasoning trace view** for each turn.
 - **Markdown-based persistence** of conversations.
@@ -30,7 +30,7 @@ and aligns with success metrics around setup speed and reasoning visibility.
 
 ## Out of Scope (Deferred)
 
-- Alternate LLMs beyond default Mistral.
+- Alternate LLMs beyond default Qwen3.
 - Advanced MCP adapters beyond Memory & Fetch.
 - Educator dashboards, plugin registry, or community integrations.
 
@@ -48,7 +48,7 @@ and aligns with success metrics around setup speed and reasoning visibility.
 
 - SvelteKit + Tailwind UI shell
 - LangGraph.js orchestration
-- Ollama runtime + Mistral model
+- Ollama runtime + Qwen3 model
 - MCP Memory/Fetch adapters
 - Docker Compose configuration
 
@@ -56,18 +56,18 @@ and aligns with success metrics around setup speed and reasoning visibility.
 
 ## Risks & Mitigations
 
-| Risk                             | Mitigation                                                       |
-| -------------------------------- | ---------------------------------------------------------------- |
-| Setup complexity on Windows/WSL2 | Add explicit WSL2 setup notes and preflight checks.              |
-| Version drift between components | Pin versions and document update flow.                           |
-| Hardware constraints             | Default to lightweight Mistral model; note resource tuning tips. |
+| Risk                             | Mitigation                                                     |
+| -------------------------------- | -------------------------------------------------------------- |
+| Setup complexity on Windows/WSL2 | Add explicit WSL2 setup notes and preflight checks.            |
+| Version drift between components | Pin versions and document update flow.                         |
+| Hardware constraints             | Default to lightweight Qwen3 model; note resource tuning tips. |
 
 ---
 
 ## Acceptance Criteria (AC)
 
 1. Running `docker compose up` launches all services successfully within ≤5 minutes on a clean system.
-2. App guides users to pull Mistral model if missing.
+2. App guides users to pull Qwen3 model if missing.
 3. User can send a message and receive a response from the **local** model.
 4. Each conversation turn shows a **reasoning trace**.
 5. Conversations persist as markdown files in the documented directory.
@@ -163,4 +163,4 @@ and aligns with success metrics around setup speed and reasoning visibility.
 
 **Epic Owner:** Product / Systems PM
 **Contributors:** Fullstack Team (SvelteKit + LangGraph.js)
-**Status:** Draft ✅ Ready for refinement
+**Status:** Done

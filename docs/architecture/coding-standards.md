@@ -12,7 +12,6 @@
   - `lib/agent/` (graph, nodes, policies)
   - `lib/mcp/` (tool adapters/clients)
   - `lib/persistence/` (storage)
-  - `lib/error/` (error envelope, mappers)
 
 - Use path aliases only if necessary; avoid deep relative import chains.
 
@@ -27,33 +26,31 @@
 - **Single envelope** across all layers:
 
   ```ts
-  export interface ApiError {
-  	error: {
-  		code:
-  			| 'BAD_REQUEST'
-  			| 'MODEL_UNAVAILABLE'
-  			| 'TOOL_FAILURE'
-  			| 'ENGINE_FAILURE'
-  			| 'INTERNAL_ERROR';
-  		message: string;
-  		details?: Record<string, unknown>;
-  		timestamp: string;
-  		requestId: string;
-  	};
+  type ErrorCode =
+  	| 'BAD_REQUEST'
+  	| 'NOT_FOUND'
+  	| 'SESSION_IN_PROGRESS'
+  	| 'MODEL_UNAVAILABLE'
+  	| 'AGENT_FAILURE'
+  	| 'UNKNOWN_ERROR';
+
+  interface ChatError {
+  	code: ErrorCode;
+  	message: string;
+  	conversation?: UUID;
   }
   ```
 
-- Never throw raw errors from endpoints; always map to `ApiError` with stable `code`.
-- Include `requestId` (attach in `hooks.server.ts`), log server-side with context.
-- UI must render friendly copy and keep the conversation usable on `TOOL_FAILURE`.
+- Never throw raw errors from endpoints; always map to `ChatError` with stable `code`.
+- Include `conversationId`, log server-side with context.
+- UI must render friendly copy and keep the conversation usable on `AGENT_FAILURE`.
 
 ## Streaming Protocol
 
 - Default transport is **SSE**. Emit canonical events:
-  - `token` → `{ text: string }`
+  - `token` → `string`
   - `trace` → `TraceNote`
-  - `tool` → `{ id, name, status }`
-  - `done` → `{ messageId, usage? }`
+  - `done` → `ChatSession`
 
 - On `EventSource.onerror`, **downgrade** to non-stream JSON once.
 
@@ -62,7 +59,14 @@
 - Write **Markdown** files per turn plus `trace.jsonl` with compact objects:
 
   ```json
-  { "ts": "2025-10-25T10:00:00Z", "node": "planner", "event": "enter", "data": { "goal": "..." } }
+  {
+  	"ts": "2025-12-27T22:57:34.907Z",
+  	"turn": 4,
+  	"name": "fetch",
+  	"node": "tools",
+  	"event": "result",
+  	"data": {}
+  }
   ```
 
 - Do not log secrets or full request bodies; redact URLs in `fetch.post` traces if they contain tokens.
@@ -71,7 +75,7 @@
 
 - The agent will consume MCP tools primarily through the `@langchain/mcp-adapters` library.
 - Tools retrieved from `MultiServerMCPClient` will be adapted to the agent's internal tool representation as necessary.
-- When adapting, ensure that the tool's functionality (name, description, schema, and call mechanism) is preserved and errors are mapped to `TOOL_FAILURE` with `{ tool: name, cause }` in `details`.
+- When adapting, ensure that the tool's functionality (name, description, schema, and call mechanism) is preserved.
 
 ## Access & Security
 
@@ -84,12 +88,12 @@
 
 - **Unit:** ≥ 80% coverage on `lib/agent/` nodes and `lib/mcp/` adapters.
 - **Integration:** Chat happy path + one tool error path; assert SSE downgrade works.
-- **Smoke:** `/healthz`, `/readyz`, `/api/models` green in CI.
+- **Smoke:** `/healthz`, `/readyz` green in CI.
 - Tests must be deterministic and run offline.
 
 ## Performance & NFRs
 
-- Aim for ~2 s p50 latency (baseline model). Expose `/metrics.json` with p50/p90.
+- Aim for ~5 s p50 latency (baseline model). Expose `/metrics.json` with p50/p90.
 - Compose healthchecks required for “99% startup success”.
 - Warmup script must pre-pull default model (`OLLAMA_MODEL`).
 
@@ -103,10 +107,10 @@
 
 - **Conventional Commits:** `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, `test:`.
 - PR checklist:
-  - [ ] Endpoint returns `ApiError` on failure
+  - [ ] Endpoint returns `ChatError` on failure
   - [ ] SSE events follow canonical schema
   - [ ] Logs/trace redact sensitive data
-  - [ ] Added/updated tests, docs, and types in `packages/shared/`
+  - [ ] Added/updated tests, docs, and types
 
 - CI blocks on lint, typecheck, tests; green only with healthchecks passing.
 
@@ -115,21 +119,3 @@
 - ESLint (TS strict) + Prettier; run `pnpm lint` and `pnpm format` on pre-commit.
 - No dead code. Remove `console.*` except in development guarded blocks.
 - Keep functions small; prefer pure helpers; avoid shared mutable state between graph nodes.
-
-## Context Retrieval Standard (Context7)
-
-All BMAD Dev agents **must** use Context7 as the authoritative source of documentation.
-
-**Rules:**
-
-1. Before writing or refactoring any code, invoke:
-   - `use context7`
-   - or `use library /<context7-id>@<version>`
-2. When implementing a story, load all relevant docs from Context7
-   (frameworks, APIs, libraries, and internal SDKs).
-3. If local or cached docs differ from Context7’s latest version,
-   prefer the **latest version** unless the story explicitly pins one.
-4. Always include a “Context7 confirmation” step in your reasoning summary.
-   Example:
-   > “Verified React Query v5 via Context7 (latest patch 5.51.3).”
-5. If Context7 is unreachable, halt and escalate to the Scrum Master agent.

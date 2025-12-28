@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import { safeJsonParse, parseUuid } from '$lib/utils';
-	import { type TraceNote } from '$lib/chat';
+	import { type ChatError, type TraceNote } from '$lib/chat';
 	import type { UUID } from 'crypto';
 	import ConversationList from '$lib/components/ConversationList.svelte';
 	import type { ConversationMetadata } from '$lib/agent/persistence';
@@ -156,7 +156,7 @@
 			console.log(
 				`loadConversation: Loaded ${loadedMessages.length} messages from conversation: ${conversation}`
 			);
-			if (last?.role === 'user') {
+			if (conversation && last?.role === 'user') {
 				resumeSession(conversation);
 			}
 		} catch (err) {
@@ -212,7 +212,7 @@
 		};
 
 		eventSource.addEventListener('token', (e) => {
-			const data = safeJsonParse(e.data, null);
+			const data = safeJsonParse<string>(e.data, '');
 			if (data) {
 				appendToken(data);
 			}
@@ -233,6 +233,13 @@
 
 		eventSource.addEventListener('end', (e) => {
 			console.log('SSE event: end. Finalizing stream.', e.lastEventId);
+			finalizeStream();
+		});
+
+		eventSource.addEventListener('chat-error', (e) => {
+			console.error('SSE event: chat error', e);
+			const err = safeJsonParse<ChatError | null>(e.data, null);
+			error = err ?? { code: 'UNKNOWN_ERROR', message: 'Unknown error.' };
 			finalizeStream();
 		});
 
@@ -324,8 +331,9 @@
 
 			// Update conversation list to reflect the new conversation
 			await loadConversations();
-
-			startSse(conversation);
+			if (conversation) {
+				startSse(conversation);
+			}
 		} catch (e) {
 			clearTimeout(timeoutId);
 			console.error('handleSubmit: Fetch failed:', e);
@@ -353,7 +361,10 @@
 	function handleConversationSelect(id: string) {
 		console.log(`handleConversationSelect: Selected conversation: ${id}`);
 		clearChatState();
-		loadConversation(parseUuid(id)); // Parse to UUID for internal use
+		const conversationId = parseUuid(id);
+		if (conversationId) {
+			loadConversation(conversationId);
+		}
 	}
 
 	function clearChatState() {

@@ -1,7 +1,15 @@
 import { env } from '$env/dynamic/private';
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { type ChatMessage, formatTraceNote } from '$lib/chat';
+import {
+	type ChatError,
+	type ChatMessage,
+	type ChatSession,
+	formatEvent,
+	formatTraceNote,
+	sendEvent,
+	type Subscriber
+} from '$lib/chat';
 import { runAgent } from '$lib/agent';
 import {
 	getConversationMessages,
@@ -14,56 +22,38 @@ import { parseUuid } from '$lib/utils';
 
 const SHOW_TOOLS = env.SHOW_TOOLS?.toLowerCase() === 'true';
 
-type EventCode = 'token' | 'trace' | 'end' | 'error';
-
-interface Session {
-	conversation: UUID;
-	status: 'pending' | 'streaming' | 'done' | 'error';
-	createdAt: number;
-	updatedAt: number;
-	error?: { code: string; message: string };
-	subscribers: Set<(ev: string, data: unknown, id?: string) => void>;
-	events: string[];
-	tokenIndex?: number;
-}
-
-const sessions = new Map<UUID, Session>();
+const sessions = new Map<UUID, ChatSession>();
 
 export const POST: RequestHandler = async ({ request }) => {
 	const body = await request.json();
 
 	const message = body.message;
 	if (!message || typeof message !== 'string' || message.trim() === '') {
-		return json(
-			{ error: { code: 'BAD_REQUEST', message: 'Message is required' } },
-			{ status: 400 }
-		);
+		const error: ChatError = {
+			code: 'BAD_REQUEST',
+			message: 'Message is required'
+		};
+		return json({ error }, { status: 400 });
 	}
 
 	const conversationStr = body.conversation;
 	if (conversationStr && typeof conversationStr !== 'string') {
-		return json(
-			{ error: { code: 'BAD_REQUEST', message: 'Invalid Conversation ID' } },
-			{ status: 400 }
-		);
+		const error: ChatError = { code: 'BAD_REQUEST', message: 'Invalid Conversation ID' };
+		return json({ error }, { status: 400 });
 	}
-	const conversationId = conversationStr ? parseUuid(conversationStr) : crypto.randomUUID();
+	const conversationId = parseUuid(conversationStr) ?? crypto.randomUUID();
 
 	const session = sessions.get(conversationId);
 
 	if (session?.status === 'pending' || session?.status === 'streaming') {
-		return json(
-			{
-				error: {
-					code: 'SESSION_IN_PROGRESS',
-					message: 'Previous request still in progress'
-				}
-			},
-			{ status: 409 }
-		);
+		const error: ChatError = {
+			code: 'SESSION_IN_PROGRESS',
+			message: 'Previous request still in progress'
+		};
+		return json({ error }, { status: 409 });
 	}
 
-	const newSession: Session = {
+	const newSession: ChatSession = {
 		conversation: conversationId,
 		status: 'pending',
 		createdAt: Date.now(),
@@ -79,7 +69,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	return json({ conversation: conversationId, session: newSession });
 };
 
-async function startAgent(conversationId: UUID, session: Session, message: string) {
+async function startAgent(conversationId: UUID, session: ChatSession, message: string) {
 	try {
 		const chatHistory = await getConversationMessages(conversationId);
 		const userTurn = await getNextTurn(conversationId);
@@ -107,15 +97,13 @@ async function startAgent(conversationId: UUID, session: Session, message: strin
 			const id = String(++session.tokenIndex!);
 
 			switch (event.type) {
-				case 'token': {
+				case 'token':
 					assistantMessage.content += event.data;
 					sendEvent('token', id, event.data, session);
 					break;
-				}
-				case 'trace': {
+				case 'trace':
 					await writeTrace(conversationId, event.data);
 
-					// If this is a tool-related trace event, store it for Markdown persistence
 					if (SHOW_TOOLS) {
 						const noteMessage = formatTraceNote(event.data);
 						assistantMessage.content += noteMessage;
@@ -124,79 +112,76 @@ async function startAgent(conversationId: UUID, session: Session, message: strin
 
 					sendEvent('trace', id, event.data, session);
 					break;
-				}
-
-				case 'end': {
+				case 'end':
 					session.status = 'done';
 					await writeMessageFile(conversationId, assistantTurn, assistantMessage);
 
-					sendEvent('end', id, { conversation: conversationId, session }, session);
+					sendEvent('end', id, session, session);
 					break;
-				}
 			}
 		}
 	} catch (e: unknown) {
 		console.error(`Agent failure for session: ${session}`, e);
-		const error = {
+		const error: ChatError = {
 			code: 'AGENT_FAILURE',
-			message: e instanceof Error ? e.message : 'Agent failed'
+			message: e instanceof Error ? e.message : 'Agent failed',
+			conversation: conversationId
 		};
 		session.status = 'error';
 		session.error = error;
 		session.updatedAt = Date.now();
 		const errId = String(++session.tokenIndex!);
-		sendEvent('error', errId, error, session);
+		sendEvent('chat-error', errId, error, session);
 	}
 }
 
-function sendEvent(code: EventCode, id: string, data: unknown, session: Session) {
-	const eventStr = `id: ${id}\nevent: ${code}\ndata: ${JSON.stringify(data)}\n\n`;
-	session.events.push(eventStr);
-	for (const send of session.subscribers) {
-		try {
-			send(code, data, id);
-		} catch {
-			/* ignore */
-		}
-	}
-}
+const EVENT_STREAM_HEADER = {
+	headers: { 'Content-Type': 'text/event-stream' }
+};
 
 export const GET: RequestHandler = ({ url, request }) => {
 	const conversationStr = url.searchParams.get('conversation');
 	const conversationId = parseUuid(conversationStr);
-
+	if (!conversationId) {
+		const error: ChatError = {
+			code: 'BAD_REQUEST',
+			message: 'Invalid Conversation ID'
+		};
+		return new Response(formatEvent('chat-error', error), EVENT_STREAM_HEADER);
+	}
 	const session = sessions.get(conversationId);
 	if (!session) {
-		return new Response('event: error\ndata: {"code":"NOT_FOUND"}\n\n', {
-			headers: { 'Content-Type': 'text/event-stream' }
-		});
+		const error: ChatError = {
+			code: 'NOT_FOUND',
+			message: 'Conversation Not Found',
+			conversation: conversationId
+		};
+		return new Response(formatEvent('chat-error', error), EVENT_STREAM_HEADER);
 	}
 	if (session.status === 'done') {
-		return new Response(`event: end\ndata: ${JSON.stringify(session)}\n\n`, {
-			headers: { 'Content-Type': 'text/event-stream' }
-		});
+		return new Response(formatEvent('end', session), EVENT_STREAM_HEADER);
 	}
 	if (session.status === 'error') {
-		return new Response(`event: error\ndata: ${JSON.stringify(session.error)}\n\n`, {
-			headers: { 'Content-Type': 'text/event-stream' }
-		});
+		return new Response(formatEvent('chat-error', session.error), EVENT_STREAM_HEADER);
 	}
 
 	const stream = new ReadableStream({
 		start(controller) {
 			const encoder = new TextEncoder();
 			let closed = false;
-			const send = (event: string, data: unknown, id?: string) => {
-				if (closed) return;
-				let payload = '';
-				if (id) payload += `id: ${id}\n`;
-				payload += `event: ${event}\n`;
-				payload += `data: ${JSON.stringify(data)}\n\n`;
+			const send: Subscriber = (code, data, id) => {
+				if (closed) {
+					return;
+				}
 				try {
+					const payload = formatEvent(code, data, id);
 					controller.enqueue(encoder.encode(payload));
 				} catch {
 					closed = true;
 				}
+			};
+			const sink: Subscriber = (code, data, id) => {
+				send(code, data, id);
 			};
 
 			const pingInterval = setInterval(() => {
@@ -228,18 +213,21 @@ export const GET: RequestHandler = ({ url, request }) => {
 					}
 			}
 
-			const sink = (event: string, data: unknown, id?: string) => send(event, data, id);
-
-			if (session.status === 'streaming' || session.status === 'pending') {
-				session.subscribers.add(sink);
-			} else if (session.status === 'done') {
-				send('end', session, String(session.tokenIndex ?? 0));
-			} else if (session.status === 'error') {
-				send(
-					'error',
-					session.error || { code: 'UNKNOWN', message: 'Unknown error' },
-					String(session.tokenIndex ?? 0)
-				);
+			switch (session.status) {
+				case 'streaming':
+				case 'pending':
+					session.subscribers.add(sink);
+					break;
+				case 'done':
+					send('end', session, String(session.tokenIndex ?? 0));
+					break;
+				case 'error': {
+					const error: ChatError = session.error ?? {
+						code: 'UNKNOWN_ERROR',
+						message: 'Unknown error'
+					};
+					send('chat-error', error, String(session.tokenIndex ?? 0));
+				}
 			}
 		}
 	});

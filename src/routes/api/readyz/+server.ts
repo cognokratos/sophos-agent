@@ -3,7 +3,7 @@ import { env } from '$env/dynamic/private';
 
 export async function GET() {
 	const ollamaHost = env.OLLAMA_HOST || 'http://localhost:11434';
-	const ollamaModel = env.OLLAMA_MODEL || 'mistral';
+	const ollamaModel = env.OLLAMA_MODEL || 'qwen3';
 
 	try {
 		const response = await fetch(`${ollamaHost}/api/tags`);
@@ -14,11 +14,11 @@ export async function GET() {
 		}
 
 		const data = await response.json();
-		const hasMistral = data.models.some((model: { name: string }) =>
+		const hasModel = data.models.some((model: { name: string }) =>
 			model.name.includes(ollamaModel)
 		);
 
-		if (hasMistral) {
+		if (hasModel) {
 			return json({ status: 'ok' });
 		} else {
 			const message = `Ollama model "${ollamaModel}" not available`;
