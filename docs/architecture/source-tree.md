@@ -1,63 +1,64 @@
-# Софос Agent — Source Tree (monorepo)
+# Σοφός Agent — Source Tree
 
 ```
-sofos-agent/
+sophos-agent/
 │
 ├── src/                              # SvelteKit + Agent (v0 monolith)
+│   ├── hooks.server.ts               # closes MCP connections on server shutdown
 │   ├── lib/
-│   │   ├── agent/                    # LangGraph.js graphs, nodes, policies
-│   │   │   ├── mcp/                  # Agent-specific MCP tool integration (e.g., how the agent uses the tools)
+│   │   ├── agent/                    # LangGraph.js graph and nodes
+│   │   │   ├── mcp/
+│   │   │   │   ├── config.ts         # reads mcp.json (server name -> connection)
+│   │   │   │   └── client.ts         # MCPClientService: one MCPAdapter, listTools, dispose
 │   │   │   ├── persistence/          # Markdown + trace.jsonl writers/readers
-│   │   │   ├── config.ts             # Agent-specific config
-│   │   │   └── index.ts              # Agent-specific API
+│   │   │   ├── config.ts             # model config (Ollama) + system prompt
+│   │   │   └── index.ts              # StateGraph, runAgent(), closeAgent()
+│   │   ├── components/               # Svelte components
 │   │   ├── chat.ts                   # Message, Events, Session, TraceNote
 │   │   └── utils.ts                  # Utils (e.g., uuid)
 │   └── routes/
-│   │   └── api/
-│   │       ├── chat/                 # POST /api/chat (SSE + fallback)
-│   │       ├── conversations/        # GET conversations
-│   │       │   └── [conversationId]/ # GET conversation by ID
-│   │       ├── healthz/              # liveness
-│   │       └── readyz/               # readiness (ollama + model)
-│   ├── app.css                       # tailwind css
-│   ├── app.html                      # base template
-│   └── app.d.ts                      # SvelteKit ambient types
+│       ├── +page.svelte              # chat UI
+│       └── api/
+│           ├── chat/                 # POST /api/chat, GET /api/chat (SSE)
+│           ├── conversations/        # GET conversations
+│           │   └── [conversationId]/ # GET conversation by ID
+│           ├── healthz/              # liveness
+│           └── readyz/               # readiness (ollama + model)
+│
+├── config/                           # pnpm dev: mcp.json (stdio servers) + system.md
 │
 ├── infra/
-│   ├── .env.example                   # environment variables for docker-compose
-│   ├── compose.yml                    # web, ollama, mcp-memory, mcp-fetch
+│   ├── .env.example                  # Ollama/UI settings for docker compose (copy to infra/.env)
+│   ├── compose.yml                   # web, mcp-memory, mcp-fetch, mcp-inspector (profile)
 │   ├── app/
-│   │   ├── config                     # config files for docker-compose
-│   │   └── Dockerfile                 # Dockerfile for web app
+│   │   ├── config/                   # container mcp.json (HTTP servers) + system.md
+│   │   └── Dockerfile                # web app (pnpm via Corepack, frozen lockfile)
 │   └── mcp/
-│       ├── fetch/Dockerfile           # Dockerfile for fetch MCP server
-│       └── memory/Dockerfile          # Dockerfile for memory MCP server
+│       ├── fetch/                    # Dockerfile + requirements.in/.txt (locked)
+│       └── memory/                   # Dockerfile + package.json/package-lock.json (locked)
 │
-├── data/
-│   ├── memory/                        # Memory MCP data
-│   └── chat/                          # Markdown turns + trace.jsonl (bind-mounted)
+├── data/                             # git-ignored local state
+│   ├── memory/                       # Memory MCP knowledge graph (memory.jsonl)
+│   └── chat/                         # Markdown turns + trace.jsonl
 │
+├── e2e/                              # Playwright tests
+├── examples/                         # Memory / Fetch walkthroughs
 ├── scripts/
-│   ├── setup.sh                       # warmup images & model, sanity checks
-│   └── test.sh                        # smoke tests (health, models)
+│   └── test.sh                       # Compose smoke test
 │
 ├── docs/
-│   ├── stories                        # User Stories
-│   ├── prd                            # Product Requirements & Epics
-│   └── architecture                   # Architecture & Design
-│       ├── source-tree.md             # (this file)
-│       ├── tech-stack.md              # Tech Stack
-│       └── coding-standards.md        # Coding Standards
+│   ├── stories                       # User Stories
+│   ├── prd                           # Product Requirements & Epics
+│   └── architecture                  # Architecture & Design (this folder)
 │
-├── .env.example                       # example .env file
-├── .github/workflows/ci.yml           # build, lint, test, tag
-├── Makefile                           # make dev/start/stop/clean/test
-├── package.json                       # workspace, scripts, pins
-└── pnpm-workspace.yaml
+├── .env.example                      # pnpm dev settings (copy to .env)
+├── Makefile                          # make dev/start/inspector/stop/clean/test
+├── package.json                      # scripts, deps, packageManager (pnpm)
+└── pnpm-workspace.yaml               # pnpm build-script allow-list
 ```
 
 ## Notable directories
 
 - `src/lib/agent/` — Graph orchestration with LangGraph.js; nodes emit TraceNotes.
-- `src/lib/agent/mcp/` — `MultiServerMCPClient` and core MCP adapter logic; responsible for connecting to and retrieving tools from MCP servers.
-- `src/lib/agent/persistence/` — Markdown + JSONL writers; abstracted behind a small interface to allow SQLite later.
+- `src/lib/agent/mcp/` — Configuration loading and the single `MCPAdapter` (`@langchain/mcp-adapters` 2.x) that connects to every configured MCP server and exposes its tools.
+- `src/lib/agent/persistence/` — Markdown + JSONL writers and readers.

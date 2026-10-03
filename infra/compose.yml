@@ -1,56 +1,76 @@
+# Local development topology.
+#
+# - Only `web` publishes a port, and only on the loopback interface (127.0.0.1).
+# - The MCP servers are reachable only from other containers on the default
+#   Compose network (http://mcp-memory:8080/mcp, http://mcp-fetch:8080/mcp).
+# - The MCP Inspector is opt-in: `docker compose --profile inspector up`.
+#
+# Relative host paths are resolved from this directory (infra/), so `../data`
+# is the repository's data/ directory.
+
 services:
   web:
     build:
       context: ..
       dockerfile: infra/app/Dockerfile
     ports:
-      - '5173:5173'
+      - '127.0.0.1:5173:5173'
     env_file: '.env'
     environment:
       - PORT=5173
+      - CONFIG_DIR=config
+      - CHAT_DIR=data/chat
     volumes:
-      - ./app/config:/app/config
-      - ./data:/app/data
+      - ./app/config:/app/config:ro
+      - ../data/chat:/app/data/chat
+    depends_on:
+      mcp-memory:
+        condition: service_healthy
+      mcp-fetch:
+        condition: service_healthy
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:5173/api/healthz']
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:5173/api/healthz']
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 10s
 
   mcp-memory:
     build:
       context: mcp/memory
-      dockerfile: Dockerfile
-    ports:
-      - '8081:8080'
+    environment:
+      # Read by @modelcontextprotocol/server-memory; lives on the volume below.
+      - MEMORY_FILE_PATH=/data/memory/memory.jsonl
     volumes:
-      - ../data/memory:/data/data
+      - ../data/memory:/data/memory
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:8080/ping']
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:8080/ping']
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 10s
 
   mcp-fetch:
     build:
       context: mcp/fetch
-      dockerfile: Dockerfile
-    ports:
-      - '8082:8080'
-    volumes:
-      - ../data/fetch:/data/data
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:8080/status']
+      test:
+        [
+          'CMD',
+          'python',
+          '-c',
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/status')"
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 10s
 
+  # Optional debugging UI. Connect it to http://mcp-memory:8080/mcp or
+  # http://mcp-fetch:8080/mcp; the Inspector backend runs on the Compose network.
+  # The API token is printed in the container logs.
   mcp-inspector:
-    image: ghcr.io/modelcontextprotocol/inspector:latest
-    restart: unless-stopped
+    image: ghcr.io/modelcontextprotocol/inspector:2.9.0
+    profiles: ['inspector']
     ports:
-      - '6274:6274' # Inspector UI
-      - '6277:6277' # MCP Proxy
-    environment:
-      - HOST=0.0.0.0
-      - ALLOWED_ORIGINS=http://0.0.0.0:6274
+      - '127.0.0.1:6274:6274'

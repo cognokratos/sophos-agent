@@ -1,4 +1,4 @@
-# Софос Agent — Tech Stack
+# Σοφός Agent — Tech Stack
 
 ## Overview
 
@@ -8,64 +8,62 @@ Local-first, teaching-focused stack with transparent reasoning, one-command Dock
 
 - **Framework:** SvelteKit (Node 24), SSR + endpoints
 - **Styling:** Tailwind CSS
-- **Streaming:** Server-Sent Events (SSE) from `/api/chat`; JSON fallback
+- **Streaming:** Server-Sent Events (SSE) from `/api/chat`; reconnect replays by `Last-Event-ID`
 - **State:** Lightweight store per session; no heavy client state libs
 
 ## Agent & Orchestration
 
 - **Engine:** LangGraph.js (TypeScript)
-- **Pattern:** Node-based graph; policies for tool-calling; emits `TraceNote` events
+- **Pattern:** Explicit `StateGraph` (`agent` ⇄ `tools` via `ToolNode`); emits `TraceNote` events
 - **Contracts:** `src/lib/chat.ts`
 
 ## LLM Runtime
 
 - **Provider:** Ollama
 - **Default model:** `Qwen3` (baseline); profiles for tiny models on modest hardware
-- **Transport:** Local HTTP
+- **Transport:** HTTP to `OLLAMA_HOST` (runs on the host, outside Compose)
 
 ## Tools (MCP)
 
-- **Servers:** Memory MCP, Fetch MCP (containers)
-- **Bridge:** `@langchain/mcp-adapters` (JS)
-- **Tools:** Represented as `Tool` messages; surfaced as `trace` events
+- **Servers:** Memory MCP (`@modelcontextprotocol/server-memory`), Fetch MCP (`mcp-server-fetch`); stdio under `pnpm dev`, containers behind `mcp-proxy` (Streamable HTTP) under Compose
+- **Bridge:** `@langchain/mcp-adapters` 2.x — one `MCPAdapter`, `servers` config, `listTools()`, `close()`
+- **Tools:** server-prefixed names (`memory__read_graph`); results are `ToolMessage`s, surfaced as `trace` events
 
 ## Persistence
 
 - **Primary:** Markdown files per turn + `trace.jsonl`
-- **Path:** `/data/chat/{conversationId}/`
-- **Future:** Pluggable adapter → SQLite (Phase 2) without contract changes
+- **Path:** `data/chat/{conversationId}/`; Memory MCP graph in `data/memory/memory.jsonl`
+- **Future (roadmap):** SQLite adapter
 
 ## Observability (zero-SaaS)
 
-- **Health:** `/healthz` (liveness), `/readyz` (Ollama reachable + model present)
-- **Metrics:** `/metrics.json` (p50/p90 latency, request count, error counts)
-- **Dashboard:** `/metrics` renders JSON (optional)
+- **Health:** `/api/healthz` (liveness), `/api/readyz` (Ollama reachable + model present)
+- **Metrics / dashboard / OpenTelemetry:** roadmap, not implemented
 
 ## Testing & QA
 
-- **Unit:** Vitest (graph nodes, adapters)
-- **E2E:** Playwright (chat happy path, SSE fallback)
-- **Smoke:** `scripts/test.sh` (health, models)
+- **Unit:** Vitest (graph node, MCP service + config, persistence, API, components)
+- **E2E:** Playwright (chat, MCP examples, persistence) against real Ollama + MCP
+- **Smoke:** `scripts/test.sh` (Compose healthchecks, no published MCP ports, readiness)
 - **Lint/Format:** ESLint (TS strict), Prettier
 
 ## CI/CD
 
-- **Runner:** GitHub Actions
-- **Jobs:** Lint → Typecheck → Test → Build → Tag
-- **Versioning:** Semantic commits; pinned deps to reduce drift
+- **Not implemented yet.** There is no CI workflow in the repository; checks run locally (see [7.3](./7-developer-experience-dx.md#73-testing-qa)).
+- **Versioning:** Conventional commits; locked dependencies to reduce drift
 
 ## Security posture
 
-- **Default:** Local-only binds (127.0.0.1)
-- **Secrets:** Minimal; no telemetry
+- **Default:** only the web app is published, on `127.0.0.1`; MCP servers are internal; the Fetch MCP is the explicit egress (see [9)](./9-security-posture.md))
+- **Secrets:** Minimal; no telemetry; no authentication
 
-## Version pins (suggested minimums)
+## Versions
 
-- Node 24.x LTS
-- pnpm 10.x
-- SvelteKit ^2
-- LangGraph.js: current stable (pin in `package.json`)
-- Ollama: pinned image tag
-- MCP servers: pinned image tags
-- Vitest ^3, Playwright ^1.55
-- ESLint ^9, TypeScript ^5.9, Prettier ^3
+Exact versions live in `package.json` / `pnpm-lock.yaml` and the MCP container lockfiles (see [4) Version pinning](./4-deployment-topology-docker-compose.md#version-pinning)).
+
+- Node 24 (`engines`), pnpm 10.34.6 (`packageManager`, via Corepack)
+- SvelteKit 2, Svelte 5, Vite 7, Tailwind 4
+- `@langchain/langgraph` 1.4, `@langchain/core` 1.2, `@langchain/mcp-adapters` 2.0, `@langchain/ollama` 1.1, Zod 4
+- `@modelcontextprotocol/server-memory` 2026.8.31, `mcp-server-fetch` 2026.8.18, MCP Inspector 2.9.0
+- Ollama: installed on the host, not pinned by this repository
+- Vitest 3, Playwright 1.57, ESLint 9, TypeScript 5.9, Prettier 3

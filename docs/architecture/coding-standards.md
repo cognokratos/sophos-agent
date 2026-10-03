@@ -1,4 +1,4 @@
-# Софос Agent — Coding Standard
+# Σοφός Agent — Coding Standard
 
 ## Language & Type System
 
@@ -9,9 +9,9 @@
 ## Project Structure & Imports
 
 - Keep feature code close to usage:
-  - `lib/agent/` (graph, nodes, policies)
-  - `lib/mcp/` (tool adapters/clients)
-  - `lib/persistence/` (storage)
+  - `lib/agent/` (graph, nodes)
+  - `lib/agent/mcp/` (MCP configuration and client)
+  - `lib/agent/persistence/` (storage)
 
 - Use path aliases only if necessary; avoid deep relative import chains.
 
@@ -19,7 +19,7 @@
 
 - Files: `kebab-case.ts`; components: `PascalCase.svelte`; classes/types: `PascalCase`; functions/vars: `camelCase`.
 - Graph nodes: prefix with domain (`plannerNode`, `toolNode`, `finalizeNode`).
-- Event names: `token`, `trace`, `tool`, `done` (canonical).
+- SSE event names: `token`, `trace`, `end`, `chat-error`, `ping` (canonical).
 
 ## Error Handling (authoritative)
 
@@ -50,9 +50,10 @@
 - Default transport is **SSE**. Emit canonical events:
   - `token` → `string`
   - `trace` → `TraceNote`
-  - `done` → `ChatSession`
+  - `end` → `ChatSession`
+  - `chat-error` → `ChatError`
 
-- On `EventSource.onerror`, **downgrade** to non-stream JSON once.
+- Every event carries an `id`; reconnecting clients resume with `Last-Event-ID`.
 
 ## Logging & Tracing
 
@@ -73,13 +74,14 @@
 
 ## MCP Tool Adapters
 
-- The agent will consume MCP tools primarily through the `@langchain/mcp-adapters` library.
-- Tools retrieved from `MultiServerMCPClient` will be adapted to the agent's internal tool representation as necessary.
-- When adapting, ensure that the tool's functionality (name, description, schema, and call mechanism) is preserved.
+- The agent consumes MCP tools through `@langchain/mcp-adapters` 2.x: one `MCPAdapter` (`{ servers }` config, `listTools()`, `close()`), owned by `MCPClientService`.
+- Add servers in `mcp.json`, not in code. Keep `prefixToolNameWithServerName: true` so tool names stay unambiguous across servers.
+- Do not wrap or re-describe adapter tools; the model should see the server's own name, description and schema.
+- Pin every MCP server version (`npx pkg@x.y.z`, `uvx pkg@x.y.z`, container lockfiles).
 
 ## Access & Security
 
-- Default binding `127.0.0.1`; “publish” profile is an explicit opt-in.
+- Publish ports only on `127.0.0.1`; MCP services stay on the internal Compose network. Debug tooling lives behind an opt-in profile (`inspector`).
 - Validate inputs at the edge (SvelteKit endpoint) with a light schema (e.g., Zod).
 - CORS disabled by default; only enable for demos with explicit origins.
 - No telemetry. All artifacts remain local.
@@ -88,14 +90,14 @@
 
 - **Unit:** ≥ 80% coverage on `lib/agent/` nodes and `lib/mcp/` adapters.
 - **Integration:** Chat happy path + one tool error path; assert SSE downgrade works.
-- **Smoke:** `/healthz`, `/readyz` green in CI.
-- Tests must be deterministic and run offline.
+- **Smoke:** `/api/healthz`, `/api/readyz` green (`scripts/test.sh`).
+- Unit tests must be deterministic and run offline; e2e and smoke tests need Ollama (and network for Fetch).
 
 ## Performance & NFRs
 
-- Aim for ~5 s p50 latency (baseline model). Expose `/metrics.json` with p50/p90.
+- Aim for ~5 s p50 latency (baseline model). A local metrics endpoint is on the roadmap.
 - Compose healthchecks required for “99% startup success”.
-- Warmup script must pre-pull default model (`OLLAMA_MODEL`).
+- Pull the default model (`ollama pull $OLLAMA_MODEL`) before starting; a warmup step is on the roadmap.
 
 ## Documentation & Comments
 
@@ -112,7 +114,7 @@
   - [ ] Logs/trace redact sensitive data
   - [ ] Added/updated tests, docs, and types
 
-- CI blocks on lint, typecheck, tests; green only with healthchecks passing.
+- Before merging: `pnpm lint`, `pnpm check`, `pnpm test:unit --run`, `pnpm build` (no CI pipeline yet).
 
 ## Code Style
 

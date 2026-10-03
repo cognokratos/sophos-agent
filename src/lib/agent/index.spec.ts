@@ -25,6 +25,6 @@ describe('agentNode', () => {
 
 		const state = { messages: [new HumanMessage('test message')], modelCalls: 0 };
 
-		expect(agentNode(mockModel)(state)).rejects.toThrow('MODEL_UNAVAILABLE');
+		await expect(agentNode(mockModel)(state)).rejects.toThrow('MODEL_UNAVAILABLE');
 	});
 });

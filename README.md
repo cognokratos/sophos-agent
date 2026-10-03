@@ -8,11 +8,11 @@
 
 ## 📌 Overview
 
-This repository is an **educational initiative** designed to teach you how to build an **entirely local, agentic chat application** from first principles.
+This repository is an **educational initiative** designed to teach you how to build a **local-first, agentic chat application** from first principles: local inference and local state by default, with explicit network access through configured tools.
 
 Unlike cloud-dependent chatbot frameworks, this project prioritizes:
 
-- **Local-only execution**
+- **Local inference and local state** (Ollama, plain files under `data/`)
 - **Maximum security & auditability**
 - **Explicit agent control loops**
 - **Minimal abstractions**
@@ -46,7 +46,7 @@ This project is intended for:
 
 ### Local-First
 
-All computation, inference, memory, and orchestration are designed to run **entirely on your machine**.
+Inference, memory, and orchestration run **on your machine**. The only network access is explicit: the Fetch MCP server, enabled in `mcp.json`, retrieves URLs the model asks for. Remove it and the agent has no tool-initiated network access.
 
 ### Minimalist
 
@@ -147,7 +147,8 @@ The security posture is documented in detail under `docs/architecture/9-security
 
 Key principles include:
 
-- No implicit network access
+- No implicit network access (tool egress is explicit and configurable)
+- Nothing published beyond `127.0.0.1` by default
 - Explicit trust boundaries
 - Local secrets management
 - Defense-in-depth assumptions
@@ -175,12 +176,7 @@ These exercises will deepen your understanding of agentic systems.
 
 This is an **active educational architecture**, not a finished product.
 
-The roadmap explicitly documents:
-
-- Planned improvements
-- Known limitations
-- Design debt
-- Future agent capabilities
+The [roadmap](docs/architecture/11-roadmap-from-prd.md) separates what is implemented today from what is planned (checkpointing, human-in-the-loop approval, SQLite, observability, evals, guardrails). The architecture documents describe the current implementation.
 
 Students are encouraged to fork, modify, and experiment.
 
@@ -213,12 +209,29 @@ You should be able to understand and operate this system **years from now**, wit
 
 ## 🚀 Getting Started
 
-1. Clone the repository
-2. Read `docs/architecture/1-introduction.md`
-3. Follow the documentation sequentially
-4. Modify the system intentionally
-5. Break things
-6. Learn deeply
+Prerequisites: Node 24, Docker, and [Ollama](https://ollama.com) with the default model (`ollama pull qwen3`). For `pnpm dev` you also need `npx` and [`uv`](https://docs.astral.sh/uv/) (the MCP servers run as local stdio processes).
+
+```sh
+corepack enable                  # pnpm version comes from package.json#packageManager
+pnpm install --frozen-lockfile
+
+# Option A: local development
+cp .env.example .env
+pnpm dev
+
+# Option B: Docker Compose (http://127.0.0.1:5173)
+cp infra/.env.example infra/.env
+make start                       # make inspector: also starts the MCP Inspector on 127.0.0.1:6274
+make stop
+```
+
+Then:
+
+1. Read `docs/architecture/1-introduction.md`
+2. Follow the documentation sequentially
+3. Modify the system intentionally
+4. Break things
+5. Learn deeply
 
 ---
 

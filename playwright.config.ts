@@ -3,7 +3,7 @@ import { defineConfig } from '@playwright/test';
 export default defineConfig({
 	webServer: {
 		command:
-			'npm run build && CHAT_DIR="data/test/chat" MEMORY_DIR="data/test/memory" npm run preview',
+			'pnpm run build && CHAT_DIR="data/test/chat" MEMORY_FILE_PATH="data/test/memory/memory.jsonl" pnpm run preview',
 		port: 4173
 	},
 	testDir: 'e2e',

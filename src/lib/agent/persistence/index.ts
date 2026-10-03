@@ -133,7 +133,7 @@ export async function getConversationMessages(
 			const role = parts[1] as 'user' | 'assistant';
 
 			// Generate a unique ID for the message
-			const id = `${conversationId}_${role}_${turn}}`;
+			const id = `${conversationId}_${role}_${turn}`;
 
 			messages.push({
 				id,

@@ -4,7 +4,7 @@ This document demonstrates how to use the Fetch MCP tool with the agent.
 
 ## Overview
 
-The Fetch MCP provides safe HTTP GET request capabilities for fetching content from URLs. It's useful for the agent to retrieve external information.
+The Fetch MCP retrieves a URL and returns its content as Markdown. It is the system's explicit network access: requests go to whatever URL the model chooses.
 
 ## Example Usage
 
@@ -16,7 +16,7 @@ To demonstrate the Fetch MCP tool, you can ask the agent to:
 Get the content from https://httpbin.org/get
 ```
 
-The agent will use the `fetch.get` tool to retrieve the content from the specified URL.
+The agent will use the `fetch__fetch` tool to retrieve the content from the specified URL.
 
 ### Fetch and Summarize a Webpage
 
@@ -24,20 +24,23 @@ The agent will use the `fetch.get` tool to retrieve the content from the specifi
 Fetch the content from https://jsonplaceholder.typicode.com/posts/1 and tell me what it contains.
 ```
 
-The agent will use the `fetch.get` tool to retrieve the content and then process it.
+The agent will use the `fetch__fetch` tool to retrieve the content and then process it.
 
 ## Expected Tool Calls
 
 When using the Fetch MCP, you should see this tool call in the reasoning trace:
 
-- `fetch.get` - When performing an HTTP GET request
+- `fetch__fetch` - When performing an HTTP GET request
+
+Tool names are prefixed with the server name from `mcp.json` (`fetch`).
 
 ## Safety Considerations
 
-- The Fetch MCP only supports HTTP GET requests
-- URLs are checked for safety before execution
-- The agent cannot access localhost or private network addresses by default
+- The Fetch MCP only performs HTTP GET requests.
+- It honours `robots.txt` for autonomous fetches.
+- It does **not** block localhost or private network addresses. Under Docker it can reach other Compose services and the host; under `pnpm dev`, your machine and LAN. See [Security Posture](../docs/architecture/9-security-posture.md).
+- Fetched content is untrusted model input (prompt injection).
 
 ## Integration Details
 
-The Fetch MCP is configured as an MCP server in the `config/mcp.json` file and integrated via the `@langchain/mcp-adapters` client. The agent automatically retrieves available tools from connected MCP servers during initialization.
+The Fetch MCP is configured in `config/mcp.json` (stdio, `pnpm dev`) or `infra/app/config/mcp.json` (HTTP, Docker) and connected through a single `MCPAdapter` from `@langchain/mcp-adapters`. Tools are discovered on the first chat request.

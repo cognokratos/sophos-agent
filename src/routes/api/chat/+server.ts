@@ -121,7 +121,7 @@ async function startAgent(conversationId: UUID, session: ChatSession, message: s
 			}
 		}
 	} catch (e: unknown) {
-		console.error(`Agent failure for session: ${session}`, e);
+		console.error(`Agent failure for conversation ${conversationId}`, e);
 		const error: ChatError = {
 			code: 'AGENT_FAILURE',
 			message: e instanceof Error ? e.message : 'Agent failed',

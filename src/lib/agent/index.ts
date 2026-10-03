@@ -1,20 +1,12 @@
 import { ChatOllama, type ChatOllamaCallOptions } from '@langchain/ollama';
 import { type AIMessageChunk, type BaseMessage } from '@langchain/core/messages';
 import { SystemMessage, AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
-import {
-	StateGraph,
-	START,
-	END,
-	MessagesAnnotation,
-	Annotation,
-	type Messages
-} from '@langchain/langgraph';
+import { StateGraph, START, END, MessagesAnnotation, Annotation } from '@langchain/langgraph';
 import type { AgentEvent, ChatMessage } from '$lib/chat';
 import { getMCPClientService } from './mcp/client';
 import type { BaseLanguageModelInput } from '@langchain/core/language_models/base';
 import { type Runnable } from '@langchain/core/runnables';
 import { ToolNode } from '@langchain/langgraph/prebuilt';
-import type { CompiledStateGraph } from '@langchain/langgraph';
 import { getModelConfig, getSystemMessage } from '$lib/agent/config';
 import type { ConversationMessage } from '$lib/agent/persistence';
 
@@ -27,13 +19,10 @@ const MessagesStateSchema = Annotation.Root({
 	})
 });
 type MessagesState = typeof MessagesStateSchema.State;
-type InState = { messages: BaseMessage[]; modelCalls: number };
-type OutState = { messages?: Messages | undefined; modelCalls?: number | undefined };
 const nodes = {
 	AGENT: 'agent',
 	TOOLS: 'tools'
 };
-type Edges = typeof START | typeof END | typeof nodes.AGENT | typeof nodes.TOOLS;
 
 export function agentNode(agent: OllamaAgent) {
 	return async function (state: MessagesState) {
@@ -74,7 +63,7 @@ async function initGraph() {
 		await client.initialize();
 	}
 
-	const tools = await client.getTools();
+	const tools = await client.listTools();
 	const agent = model.bindTools(tools);
 
 	const stateGraph = new StateGraph(MessagesStateSchema)
@@ -87,7 +76,28 @@ async function initGraph() {
 	return stateGraph.compile();
 }
 
-let graph: CompiledStateGraph<InState, OutState, Edges> | null = null;
+// The graph is built once, on first use. Caching the promise (not the graph)
+// means concurrent first requests share one build and one set of MCP connections.
+let graphPromise: ReturnType<typeof initGraph> | null = null;
+
+function getGraph() {
+	if (!graphPromise) {
+		graphPromise = initGraph().catch((error) => {
+			graphPromise = null; // allow a retry on the next request
+			throw error;
+		});
+	}
+	return graphPromise;
+}
+
+/**
+ * Drops the compiled graph and closes all MCP connections.
+ * Called on server shutdown (see `src/hooks.server.ts`).
+ */
+export async function closeAgent(): Promise<void> {
+	graphPromise = null;
+	await getMCPClientService().dispose();
+}
 
 function convertMessage(message: ConversationMessage): HumanMessage | AIMessage | null {
 	switch (message.role) {
@@ -105,11 +115,9 @@ export async function* runAgent(
 	message: ChatMessage,
 	messages: ConversationMessage[]
 ): AsyncGenerator<AgentEvent> {
-	if (!graph) {
-		graph = await initGraph();
-	}
+	const graph = await getGraph();
 	const systemMessage = new SystemMessage(await getSystemMessage());
-	const chatHistory = messages.map(convertMessage).filter(Boolean);
+	const chatHistory = messages.map(convertMessage).filter((m) => m !== null);
 	const userMessage = new HumanMessage(message.content);
 	const stream = await graph.stream(
 		{ messages: [systemMessage, ...chatHistory, userMessage] },
@@ -152,7 +160,6 @@ export async function* runAgent(
 				};
 			}
 			if (msg.tool_calls?.length) {
-				console.log(msg);
 				for (const toolCall of msg.tool_calls) {
 					yield {
 						type: 'trace',
