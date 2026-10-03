@@ -12,6 +12,7 @@
 	import type { UUID } from 'crypto';
 	import ConversationList from '$lib/components/ConversationList.svelte';
 	import TraceNoteList from '$lib/components/TraceNoteList.svelte';
+	import Markdown from '$lib/components/Markdown.svelte';
 
 	import bg from '$lib/assets/bg.webp?enhanced';
 
@@ -396,12 +397,11 @@
 											message.role === 'user' ? 'bg-blue-600 text-right' : 'bg-gray-700'
 										}`}
 									>
-										{#if message.content}
-											<p
-												class="font-sans whitespace-pre-wrap"
-												data-testid={message.role === 'user' ? 'user-message' : 'assistant-message'}
-											>
-												{message.content.trim().replaceAll('<br>', '\n')}
+										{#if message.content && message.role === 'assistant'}
+											<Markdown content={message.content} testid="assistant-message" />
+										{:else if message.content}
+											<p class="font-sans whitespace-pre-wrap" data-testid="user-message">
+												{message.content.trim()}
 											</p>
 										{/if}
 										{#each message.toolCalls ?? [] as call, i (`${message.id}_${i}`)}

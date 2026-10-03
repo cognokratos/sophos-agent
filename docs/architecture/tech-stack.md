@@ -7,7 +7,8 @@ Local-first, teaching-focused stack with transparent reasoning, one-command Dock
 ## Frontend
 
 - **Framework:** SvelteKit (Node 24), SSR + endpoints
-- **Styling:** Tailwind CSS
+- **Styling:** Tailwind CSS (+ Typography for rendered Markdown)
+- **Markdown:** assistant messages rendered with `marked` and sanitized with DOMPurify (images never loaded); user messages stay plain text
 - **Streaming:** Server-Sent Events (SSE) from `/api/chat`; reconnect replays by `Last-Event-ID`
 - **State:** Lightweight store per session; no heavy client state libs
 
