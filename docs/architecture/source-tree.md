@@ -4,17 +4,23 @@
 sophos-agent/
 │
 ├── src/                              # SvelteKit + Agent (v0 monolith)
-│   ├── hooks.server.ts               # closes MCP connections on server shutdown
+│   ├── hooks.server.ts               # closes MCP connections and SQLite on server shutdown
 │   ├── lib/
-│   │   ├── agent/                    # LangGraph.js graph and nodes
+│   │   ├── agent/
+│   │   │   ├── graph.ts              # the StateGraph: agent ⇄ tools, threadConfig()
+│   │   │   ├── index.ts              # runtime: getGraph(), runAgent(), getThreadState()
+│   │   │   ├── runs.ts               # start/finish runs, active-run SSE registry
+│   │   │   ├── messages.ts           # LangChain messages -> MessageDto
+│   │   │   ├── export.ts             # Markdown / checkpoint JSONL exports
+│   │   │   ├── config.ts             # Ollama config, system prompt, recursion limit
 │   │   │   ├── mcp/
 │   │   │   │   ├── config.ts         # reads mcp.json (server name -> connection)
 │   │   │   │   └── client.ts         # MCPClientService: one MCPAdapter, listTools, dispose
-│   │   │   ├── persistence/          # Markdown + trace.jsonl writers/readers
-│   │   │   ├── config.ts             # model config (Ollama) + system prompt
-│   │   │   └── index.ts              # StateGraph, runAgent(), closeAgent()
+│   │   │   └── persistence/
+│   │   │       ├── database.ts       # SQLite connection, migrations, checkpointer
+│   │   │       └── conversations.ts  # conversations + runs tables
 │   │   ├── components/               # Svelte components
-│   │   ├── chat.ts                   # Message, Events, Session, TraceNote
+│   │   ├── chat.ts                   # API DTOs: MessageDto, ConversationSummary, RunStatus, TraceNote
 │   │   └── utils.ts                  # Utils (e.g., uuid)
 │   └── routes/
 │       ├── +page.svelte              # chat UI
@@ -22,6 +28,7 @@ sophos-agent/
 │           ├── chat/                 # POST /api/chat, GET /api/chat (SSE)
 │           ├── conversations/        # GET conversations
 │           │   └── [conversationId]/ # GET conversation by ID
+│           │       └── export/       # GET Markdown / checkpoint JSONL export
 │           ├── healthz/              # liveness
 │           └── readyz/               # readiness (ollama + model)
 │
@@ -38,8 +45,9 @@ sophos-agent/
 │       └── memory/                   # Dockerfile + package.json/package-lock.json (locked)
 │
 ├── data/                             # git-ignored local state
+│   ├── db/                           # sophos.db: conversations, runs, LangGraph checkpoints
 │   ├── memory/                       # Memory MCP knowledge graph (memory.jsonl)
-│   └── chat/                         # Markdown turns + trace.jsonl
+│   └── chat/                         # legacy Markdown conversations (no longer used)
 │
 ├── e2e/                              # Playwright tests
 ├── examples/                         # Memory / Fetch walkthroughs
@@ -59,6 +67,6 @@ sophos-agent/
 
 ## Notable directories
 
-- `src/lib/agent/` — Graph orchestration with LangGraph.js; nodes emit TraceNotes.
+- `src/lib/agent/` — Graph orchestration with LangGraph.js; durable runs (see [3a](./3a-durable-execution-persistence.md)).
 - `src/lib/agent/mcp/` — Configuration loading and the single `MCPAdapter` (`@langchain/mcp-adapters` 2.x) that connects to every configured MCP server and exposes its tools.
-- `src/lib/agent/persistence/` — Markdown + JSONL writers and readers.
+- `src/lib/agent/persistence/` — the SQLite database: application tables and the LangGraph checkpointer.

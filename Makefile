@@ -2,7 +2,7 @@ COMPOSE_FILE="infra/compose.yml"
 ENV_FILE="infra/.env"
 COMPOSE=docker compose -f ${COMPOSE_FILE} --env-file ${ENV_FILE}
 
-.PHONY: help test dev start stop inspector format clean-chat clean-memory clean
+.PHONY: help test dev start stop inspector format clean-db clean-memory clean
 
 help:
 	@echo "Available targets:"
@@ -14,7 +14,7 @@ help:
 	@echo "  inspector: Start the cluster with the MCP Inspector (http://127.0.0.1:6274)."
 	@echo "  format: Format the codebase."
 	@echo "  clean: Clean the entire data directory."
-	@echo "  clean-chat: Clean the chat directory."
+	@echo "  clean-db: Delete the SQLite database (conversations, runs, checkpoints)."
 	@echo "  clean-memory: Clean the memory directory."
 
 test:
@@ -26,25 +26,25 @@ dev:
 # Create the bind-mounted data directories up front so they are owned by the
 # current user rather than created as root by the Docker daemon.
 start:
-	mkdir -p data/chat data/memory
+	mkdir -p data/db data/memory
 	${COMPOSE} up --build -d --wait
 
 stop:
 	${COMPOSE} --profile inspector down
 
 inspector:
-	mkdir -p data/chat data/memory
+	mkdir -p data/db data/memory
 	${COMPOSE} --profile inspector up --build -d --wait
 
 format:
 	pnpm format && pnpm check
 
-clean-chat:
-	rm -rf data/chat/*
+clean-db:
+	rm -rf data/db/*
 
 clean-memory:
 	rm -rf data/memory/*
 
 clean:
-	make clean-chat
+	make clean-db
 	make clean-memory

@@ -6,7 +6,7 @@
 src/        (SvelteKit + Agent)
 config/     (mcp.json + system.md for `pnpm dev`)
 infra/      (compose, Dockerfiles, container config)
-data/       (chat/ and memory/ — local state, git-ignored)
+data/       (db/sophos.db and memory/ — local state, git-ignored)
 scripts/    (Compose smoke test)
 docs/       (Documentation)
 ```
@@ -32,7 +32,7 @@ make stop
 
 ## 7.3 Testing & QA
 
-- **Unit:** Vitest — `server` project (agent node, MCP service and config loader, persistence, API) and `client` project (Svelte components in Chromium). `pnpm test:unit --run`.
+- **Unit:** Vitest — `server` project (durable graph behaviour with a scripted model and a real SQLite file, persistence, runs, API, MCP service and config loader) and `client` project (Svelte components in Chromium). `pnpm test:unit --run`.
 - **Integration:** Playwright against `pnpm preview` with real Ollama + MCP servers. `pnpm test:e2e`.
 - **Compose smoke:** `scripts/test.sh` — builds the stack, waits for all healthchecks, asserts the MCP services publish no host ports, then waits for `/api/readyz`.
 - **Static:** `pnpm check` (svelte-check, TS strict), `pnpm lint` (Prettier + ESLint).

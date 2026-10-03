@@ -176,7 +176,7 @@ These exercises will deepen your understanding of agentic systems.
 
 This is an **active educational architecture**, not a finished product.
 
-The [roadmap](docs/architecture/11-roadmap-from-prd.md) separates what is implemented today from what is planned (checkpointing, human-in-the-loop approval, SQLite, observability, evals, guardrails). The architecture documents describe the current implementation.
+The [roadmap](docs/architecture/11-roadmap-from-prd.md) separates what is implemented today from what is planned (human-in-the-loop approval, observability, evals, guardrails). The architecture documents describe the current implementation; start with [durable execution & persistence](docs/architecture/3a-durable-execution-persistence.md) to see how conversations, LangGraph threads, runs and checkpoints fit together.
 
 Students are encouraged to fork, modify, and experiment.
 
@@ -224,6 +224,8 @@ cp infra/.env.example infra/.env
 make start                       # make inspector: also starts the MCP Inspector on 127.0.0.1:6274
 make stop
 ```
+
+The SQLite database (`data/db/sophos.db`) is created automatically on first use; `make clean-db` deletes it.
 
 Then:
 

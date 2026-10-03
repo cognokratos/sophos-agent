@@ -1,213 +1,137 @@
-import { ChatOllama, type ChatOllamaCallOptions } from '@langchain/ollama';
-import { type AIMessageChunk, type BaseMessage } from '@langchain/core/messages';
-import { SystemMessage, AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
-import { StateGraph, START, END, MessagesAnnotation, Annotation } from '@langchain/langgraph';
-import type { AgentEvent, ChatMessage } from '$lib/chat';
+import { ChatOllama } from '@langchain/ollama';
+import { AIMessage, HumanMessage, ToolMessage, type BaseMessage } from '@langchain/core/messages';
+import type { AgentEvent, MessageDto, TraceNote } from '$lib/chat';
 import { getMCPClientService } from './mcp/client';
-import type { BaseLanguageModelInput } from '@langchain/core/language_models/base';
-import { type Runnable } from '@langchain/core/runnables';
-import { ToolNode } from '@langchain/langgraph/prebuilt';
-import { getModelConfig, getSystemMessage } from '$lib/agent/config';
-import type { ConversationMessage } from '$lib/agent/persistence';
-
-type OllamaAgent = Runnable<BaseLanguageModelInput, AIMessageChunk, ChatOllamaCallOptions>;
-const MessagesStateSchema = Annotation.Root({
-	...MessagesAnnotation.spec,
-	modelCalls: Annotation<number>({
-		reducer: (x, y) => x + y,
-		default: () => 0
-	})
-});
-type MessagesState = typeof MessagesStateSchema.State;
-const nodes = {
-	AGENT: 'agent',
-	TOOLS: 'tools'
-};
-
-export function agentNode(agent: OllamaAgent) {
-	return async function (state: MessagesState) {
-		const { messages } = state;
-		try {
-			const response = await agent.invoke(messages);
-			return {
-				messages: [response],
-				modelCalls: 1
-			};
-		} catch (error: unknown) {
-			if (error instanceof Error && error.message.includes('model not found')) {
-				throw new Error('MODEL_UNAVAILABLE');
-			}
-			throw error;
-		}
-	};
-}
-
-async function shouldContinue(state: MessagesState) {
-	const lastMessage = state.messages.at(-1);
-	if (!lastMessage || !AIMessage.isInstance(lastMessage)) {
-		return END;
-	}
-
-	if (lastMessage.tool_calls?.length) {
-		return nodes.TOOLS;
-	}
-
-	return END;
-}
-
-async function initGraph() {
-	const model = new ChatOllama(getModelConfig());
-
-	const client = getMCPClientService();
-	if (!client.isInitialized()) {
-		await client.initialize();
-	}
-
-	const tools = await client.listTools();
-	const agent = model.bindTools(tools);
-
-	const stateGraph = new StateGraph(MessagesStateSchema)
-		.addNode(nodes.AGENT, agentNode(agent))
-		.addNode(nodes.TOOLS, new ToolNode(tools))
-		.addEdge(START, nodes.AGENT)
-		.addConditionalEdges(nodes.AGENT, shouldContinue)
-		.addEdge(nodes.TOOLS, nodes.AGENT);
-
-	return stateGraph.compile();
-}
-
-// The graph is built once, on first use. Caching the promise (not the graph)
-// means concurrent first requests share one build and one set of MCP connections.
-let graphPromise: ReturnType<typeof initGraph> | null = null;
-
-function getGraph() {
-	if (!graphPromise) {
-		graphPromise = initGraph().catch((error) => {
-			graphPromise = null; // allow a retry on the next request
-			throw error;
-		});
-	}
-	return graphPromise;
-}
+import { getModelConfig, getRecursionLimit, getSystemMessage } from './config';
+import { buildAgentGraph, nodes, threadConfig, type AgentGraph } from './graph';
+import { createCheckpointer, getDatabase } from './persistence/database';
+import { toMessageDtos } from './messages';
 
 /**
- * Drops the compiled graph and closes all MCP connections.
- * Called on server shutdown (see `src/hooks.server.ts`).
+ * Agent runtime: one compiled graph per process, backed by the SQLite
+ * checkpointer. Each conversation is a LangGraph thread; each call to
+ * `runAgent` is one run on that thread.
  */
-export async function closeAgent(): Promise<void> {
-	graphPromise = null;
-	await getMCPClientService().dispose();
+
+let graph: AgentGraph | null = null;
+let mcpReady: Promise<void> | null = null;
+
+/** Connects to the MCP servers on first use (shared by concurrent runs). */
+async function loadTools() {
+	const mcp = getMCPClientService();
+	mcpReady ??= mcp.initialize().catch((error) => {
+		mcpReady = null; // allow a retry on the next run
+		throw error;
+	});
+	await mcpReady;
+	return mcp.listTools();
 }
 
-function convertMessage(message: ConversationMessage): HumanMessage | AIMessage | null {
-	switch (message.role) {
-		case 'user':
-			return new HumanMessage(message.content);
-		case 'assistant':
-			return new AIMessage(message.content);
-		default:
-			return null;
-	}
+export function getGraph(): AgentGraph {
+	graph ??= buildAgentGraph({
+		model: new ChatOllama(getModelConfig()),
+		tools: loadTools,
+		systemPrompt: getSystemMessage,
+		checkpointer: createCheckpointer(getDatabase())
+	});
+	return graph;
 }
 
+/** What a run starts from: a new user message, or the thread's last checkpoint. */
+export type RunInput = { message: string } | { resume: true };
+
+/**
+ * Executes one run on the conversation's thread and yields UI events.
+ *
+ * - `{ message }` appends a user message; the checkpointer supplies the
+ *   earlier history, so nothing is reconstructed here.
+ * - `{ resume: true }` passes `null` input, which continues from the last
+ *   checkpoint (e.g. after a crash) without repeating completed steps.
+ *
+ * `durability: 'sync'` writes each checkpoint before the next step starts,
+ * so a crash loses at most the step in progress.
+ */
 export async function* runAgent(
-	currentTurn: number,
-	message: ChatMessage,
-	messages: ConversationMessage[]
+	conversationId: string,
+	input: RunInput
 ): AsyncGenerator<AgentEvent> {
-	const graph = await getGraph();
-	const systemMessage = new SystemMessage(await getSystemMessage());
-	const chatHistory = messages.map(convertMessage).filter((m) => m !== null);
-	const userMessage = new HumanMessage(message.content);
-	const stream = await graph.stream(
-		{ messages: [systemMessage, ...chatHistory, userMessage] },
-		{ streamMode: 'messages', interruptBefore: [] }
-	);
+	const graphInput = 'message' in input ? { messages: [new HumanMessage(input.message)] } : null;
+	const stream = await getGraph().stream(graphInput, {
+		...threadConfig(conversationId),
+		streamMode: 'messages',
+		durability: 'sync',
+		recursionLimit: getRecursionLimit()
+	});
 
 	let currentStep = -1;
 	let currentNode = '';
 	let currentName = '';
+	const trace = (event: TraceNote['event'], extra: Partial<TraceNote> = {}): AgentEvent => ({
+		type: 'trace',
+		data: { step: currentStep, name: currentName, node: currentNode, event, ...extra }
+	});
 
 	for await (const [msg, meta] of stream) {
 		const node: string = meta.langgraph_node;
 		const step: number = meta.langgraph_step;
-		const name: string = getName(msg, meta);
 
 		// Handle node/step transitions
 		if (step > currentStep) {
 			if (currentNode && currentNode !== node) {
-				yield {
-					type: 'trace',
-					data: { turn: currentTurn, name: currentName, node: currentNode, event: 'leave' }
-				};
+				yield trace('leave');
 			}
-
 			currentStep = step;
 			currentNode = node;
-			currentName = name;
-
-			yield {
-				type: 'trace',
-				data: { turn: currentTurn, name: currentName, node: currentNode, event: 'enter' }
-			};
+			currentName = getName(msg, meta);
+			yield trace('enter');
 		}
 
 		if (node === nodes.AGENT && AIMessage.isInstance(msg)) {
-			if (msg.content) {
-				yield {
-					type: 'token',
-					data: msg.content.toString()
-				};
+			if (msg.text) {
+				yield { type: 'token', data: msg.text };
 			}
-			if (msg.tool_calls?.length) {
-				for (const toolCall of msg.tool_calls) {
-					yield {
-						type: 'trace',
-						data: {
-							turn: currentTurn,
-							name: currentName,
-							node: 'tools',
-							event: 'call',
-							data: {
-								name: toolCall.name,
-								arguments: toolCall.args,
-								tool_call_id: toolCall.id
-							}
-						}
-					};
-				}
+			for (const toolCall of msg.tool_calls ?? []) {
+				yield trace('call', {
+					node: nodes.TOOLS,
+					data: { name: toolCall.name, arguments: toolCall.args, tool_call_id: toolCall.id }
+				});
 			}
 		}
 
-		if (node === nodes.TOOLS && ToolMessage.isInstance(msg)) {
-			if (msg.name && msg.tool_call_id) {
-				yield {
-					type: 'trace',
-					data: {
-						turn: currentTurn,
-						name: currentName,
-						node: 'tools',
-						event: 'result',
-						data: {
-							name: msg.name,
-							tool_call_id: msg.tool_call_id,
-							result: msg.content
-						}
-					}
-				};
-			}
+		if (node === nodes.TOOLS && ToolMessage.isInstance(msg) && msg.name && msg.tool_call_id) {
+			yield trace('result', {
+				node: nodes.TOOLS,
+				data: { name: msg.name, tool_call_id: msg.tool_call_id, result: msg.text }
+			});
 		}
 	}
 
-	// Final leave + end
 	if (currentNode) {
-		yield {
-			type: 'trace',
-			data: { turn: currentTurn, name: currentName, node: currentNode, event: 'leave' }
-		};
+		yield trace('leave');
 	}
-
 	yield { type: 'end' };
+}
+
+export interface ThreadState {
+	messages: MessageDto[];
+	/** Nodes scheduled to run next. Non-empty after a crash or failure: the run can be resumed. */
+	next: string[];
+}
+
+/** Reads the latest checkpoint of a conversation's thread (no model or MCP involved). */
+export async function getThreadState(conversationId: string): Promise<ThreadState> {
+	const snapshot = await getGraph().getState(threadConfig(conversationId));
+	const messages: BaseMessage[] = snapshot.values.messages ?? [];
+	return { messages: toMessageDtos(messages), next: [...snapshot.next] };
+}
+
+/**
+ * Closes all MCP connections. Called on server shutdown (see `src/hooks.server.ts`).
+ */
+export async function closeAgent(): Promise<void> {
+	graph = null;
+	mcpReady = null;
+	await getMCPClientService().dispose();
 }
 
 function getName(msg: BaseMessage, meta: Record<string, unknown>): string {
@@ -215,7 +139,7 @@ function getName(msg: BaseMessage, meta: Record<string, unknown>): string {
 		return meta.ls_model_name as string;
 	}
 	if (ToolMessage.isInstance(msg)) {
-		return msg.name!;
+		return msg.name ?? '';
 	}
 	return '';
 }

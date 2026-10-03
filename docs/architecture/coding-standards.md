@@ -57,13 +57,13 @@
 
 ## Logging & Tracing
 
-- Write **Markdown** files per turn plus `trace.jsonl` with compact objects:
+- Conversation state is persisted by the LangGraph checkpointer; do not write per-message files. Human-readable output belongs in the export endpoint (`src/lib/agent/export.ts`).
+- Trace events streamed to the UI use compact objects:
 
   ```json
   {
-  	"ts": "2025-12-27T22:57:34.907Z",
-  	"turn": 4,
-  	"name": "fetch",
+  	"step": 4,
+  	"name": "fetch__fetch",
   	"node": "tools",
   	"event": "result",
   	"data": {}

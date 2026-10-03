@@ -15,7 +15,7 @@ The agent endpoints (`/api/chat` etc.) are unauthenticated. Anyone who can reach
 
 ## Data
 
-- Conversations: `data/chat/` (Markdown + JSONL). Knowledge graph: `data/memory/memory.jsonl`. Both are plain-text, git-ignored, and stay on the machine.
+- Conversations, runs and checkpoints: `data/db/sophos.db` (SQLite, not encrypted). Knowledge graph: `data/memory/memory.jsonl`. Both are git-ignored and stay on the machine. Tool results (e.g. fetched pages) are stored in the checkpoints.
 - Prompts go only to the configured `OLLAMA_HOST`. Pointing it at a remote Ollama sends conversation content there.
 - No telemetry.
 

@@ -19,10 +19,11 @@ services:
     environment:
       - PORT=5173
       - CONFIG_DIR=config
-      - CHAT_DIR=data/chat
+      - DATABASE_PATH=data/db/sophos.db
     volumes:
       - ./app/config:/app/config:ro
-      - ../data/chat:/app/data/chat
+      # SQLite: conversations, runs, LangGraph checkpoints (+ WAL files)
+      - ../data/db:/app/data/db
     depends_on:
       mcp-memory:
         condition: service_healthy

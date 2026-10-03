@@ -1,142 +1,193 @@
-import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
-import { GET } from './+server';
-import { stat, readdir, readFile } from 'node:fs/promises';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
+import { GET as list } from './+server';
+import { GET as detail } from './[conversationId]/+server';
+import { GET as exportConversation } from './[conversationId]/export/+server';
+import { POST as postChat } from '../chat/+server';
+import { getGraph } from '$lib/agent';
+import { threadConfig } from '$lib/agent/graph';
+import { closeDatabase, getDatabase } from '$lib/agent/persistence/database';
+import { createConversation, finishRun, startRun } from '$lib/agent/persistence/conversations';
 
-// Mock the file system operations
-vi.mock('node:fs/promises', () => ({
-	readdir: vi.fn(),
-	stat: vi.fn(),
-	readFile: vi.fn()
-}));
+vi.mock('$env/dynamic/private', () => ({ env: process.env }));
 
-describe('Conversations API', () => {
-	const mockEnv = {
-		CHAT_DIR: '/mock/chat/dir'
-	};
+const WITH_MESSAGES = '33333333-3333-4333-8333-333333333333';
+const EMPTY = '44444444-4444-4444-8444-444444444444';
+const UNKNOWN = '55555555-5555-4555-8555-555555555555';
 
-	beforeEach(() => {
-		// Reset all mocks
-		vi.resetAllMocks();
-
-		// Mock process.env
-		vi.stubEnv('CHAT_DIR', mockEnv.CHAT_DIR);
+// The route handlers only use these fields of the SvelteKit event.
+type Handler = (event: never) => Promise<Response> | Response;
+const call = (handler: Handler, event: object) => handler(event as never);
+const params = (conversationId: string) => ({
+	params: { conversationId },
+	url: new URL('http://localhost/')
+});
+const post = (body: unknown) =>
+	call(postChat, {
+		request: new Request('http://localhost/api/chat', {
+			method: 'POST',
+			body: typeof body === 'string' ? body : JSON.stringify(body)
+		})
 	});
 
-	afterEach(() => {
-		vi.unstubAllEnvs();
+describe('conversation API (durable state)', () => {
+	let dir: string;
+
+	beforeAll(async () => {
+		dir = mkdtempSync(join(tmpdir(), 'sophos-api-'));
+		process.env.DATABASE_PATH = join(dir, 'sophos.db');
+
+		const db = getDatabase();
+		createConversation(db, WITH_MESSAGES, 'Echo ping', new Date('2026-10-03T10:00:00Z'));
+		createConversation(db, EMPTY, 'Nothing yet', new Date('2026-10-03T11:00:00Z'));
+
+		// Write a thread directly through LangGraph, as a finished run would.
+		await getGraph().updateState(
+			threadConfig(WITH_MESSAGES),
+			{
+				messages: [
+					new HumanMessage('Echo ping'),
+					new AIMessage({
+						content: '',
+						tool_calls: [{ id: 'c1', name: 'echo', args: { text: 'ping' } }]
+					}),
+					new ToolMessage({ content: 'echo: ping', name: 'echo', tool_call_id: 'c1' }),
+					new AIMessage('Done.')
+				]
+			},
+			'agent'
+		);
+		startRun(db, WITH_MESSAGES, 'run-1', new Date('2026-10-03T12:00:00Z'));
+		finishRun(
+			db,
+			'run-1',
+			{ status: 'completed', messageCount: 4 },
+			new Date('2026-10-03T12:01:00Z')
+		);
 	});
 
-	it('should return an empty list when no conversations exist', async () => {
-		// Mock readdir to return an empty array
-		(vi.mocked(readdir) as Mock).mockResolvedValueOnce([]);
+	afterAll(() => {
+		closeDatabase();
+		delete process.env.DATABASE_PATH;
+		rmSync(dir, { recursive: true, force: true });
+	});
 
-		const request = new Request('http://localhost/api/conversations');
-
-		// @ts-expect-error ignore for testing purposes only
-		const response = await GET({ request, params: {} });
-
+	it('lists conversations with their metadata, most recent first', async () => {
+		const response = await call(list, {});
 		expect(response.status).toBe(200);
-		const data = await response.json();
-		expect(data).toEqual({ conversations: [] });
+
+		const { conversations } = await response.json();
+		expect(conversations).toEqual([
+			{
+				id: WITH_MESSAGES,
+				title: 'Echo ping',
+				createdAt: '2026-10-03T10:00:00.000Z',
+				updatedAt: '2026-10-03T12:01:00.000Z',
+				messageCount: 4,
+				status: 'completed'
+			},
+			{
+				id: EMPTY,
+				title: 'Nothing yet',
+				createdAt: '2026-10-03T11:00:00.000Z',
+				updatedAt: '2026-10-03T11:00:00.000Z',
+				messageCount: 0,
+				status: null
+			}
+		]);
 	});
 
-	it('should return conversation metadata when conversations exist', async () => {
-		// Mock readdir to return conversation directories
-		(vi.mocked(readdir) as Mock).mockResolvedValueOnce(['conv1', 'conv2']);
-
-		// Mock stat for first conversation
-		(vi.mocked(stat) as Mock).mockResolvedValueOnce({
-			isDirectory: () => true,
-			mtime: new Date('2023-01-01T10:00:00Z'),
-			birthtime: new Date('2023-01-01T09:00:00Z')
-		});
-
-		// Mock stat for second conversation
-		(vi.mocked(stat) as Mock).mockResolvedValueOnce({
-			isDirectory: () => true,
-			mtime: new Date('2023-01-02T10:00:00Z'),
-			birthtime: new Date('2023-01-02T09:00:00Z')
-		});
-
-		// Mock readdir for first conversation directory
-		(vi.mocked(readdir) as Mock).mockResolvedValueOnce(['0001.user.md', '0002.assistant.md']);
-
-		// Mock readFile for first message
-		(vi.mocked(readFile) as Mock).mockResolvedValueOnce('Hello, how are you?');
-
-		// Mock readdir for second conversation directory
-		(vi.mocked(readdir) as Mock).mockResolvedValueOnce(['0001.user.md']);
-
-		// Mock readFile for second conversation's first message
-		(vi.mocked(readFile) as Mock).mockResolvedValueOnce('What is the meaning of life?');
-
-		const request = new Request('http://localhost/api/conversations');
-
-		// @ts-expect-error ignore for testing purposes only
-		const response = await GET({ request, params: {} });
-
+	it('returns the messages of the thread, including tool calls and results', async () => {
+		const response = await call(detail, params(WITH_MESSAGES));
 		expect(response.status).toBe(200);
-		const data = await response.json();
 
-		expect(data.conversations).toHaveLength(2);
-		expect(data.conversations[0]).toMatchObject({
-			id: 'conv2', // Should be sorted by most recent first
-			title: 'What is the meaning of life?',
-			messageCount: 1
+		const body = await response.json();
+		expect(body.resumable).toBe(false);
+		expect(body.conversation).toMatchObject({ id: WITH_MESSAGES, messageCount: 4 });
+		expect(body.messages).toMatchObject([
+			{ role: 'user', content: 'Echo ping' },
+			{ role: 'assistant', toolCalls: [{ name: 'echo', args: { text: 'ping' } }] },
+			{ role: 'tool', name: 'echo', toolCallId: 'c1', content: 'echo: ping' },
+			{ role: 'assistant', content: 'Done.' }
+		]);
+		expect(body.messages).toHaveLength(body.conversation.messageCount);
+	});
+
+	it('returns an empty message list for a conversation without runs', async () => {
+		const body = await (await call(detail, params(EMPTY))).json();
+		expect(body.messages).toEqual([]);
+		expect(body.resumable).toBe(false);
+	});
+
+	it('rejects invalid conversation ids', async () => {
+		for (const id of ['not-a-uuid', '../../etc/passwd', '']) {
+			const response = await call(detail, params(id));
+			expect(response.status).toBe(400);
+			expect((await response.json()).error.code).toBe('BAD_REQUEST');
+		}
+	});
+
+	it('returns 404 for an unknown conversation', async () => {
+		const response = await call(detail, params(UNKNOWN));
+		expect(response.status).toBe(404);
+		expect((await response.json()).error.code).toBe('NOT_FOUND');
+	});
+
+	it('exports the thread as Markdown', async () => {
+		const response = await call(exportConversation, params(WITH_MESSAGES));
+		expect(response.headers.get('content-type')).toContain('text/markdown');
+
+		const markdown = await response.text();
+		expect(markdown).toContain('# Echo ping');
+		expect(markdown).toContain('**Tool call** `echo`');
+		expect(markdown).toContain('echo: ping');
+		expect(markdown).toContain('Done.');
+	});
+
+	it('exports the checkpoint history as JSON lines, oldest first', async () => {
+		const response = await call(exportConversation, {
+			params: { conversationId: WITH_MESSAGES },
+			url: new URL('http://localhost/?format=jsonl')
 		});
-		expect(data.conversations[1]).toMatchObject({
-			id: 'conv1',
-			title: 'Hello, how are you?',
-			messageCount: 2
+		const lines = (await response.text())
+			.trim()
+			.split('\n')
+			.map((l) => JSON.parse(l));
+
+		expect(lines.length).toBeGreaterThan(0);
+		expect(lines.at(-1)).toMatchObject({
+			message_count: 4,
+			next: [],
+			last_message: { content: 'Done.' }
 		});
 	});
 
-	it('should handle errors gracefully', async () => {
-		// Mock readdir to throw an error
-		(vi.mocked(readdir) as Mock).mockRejectedValueOnce(new Error('Permission denied'));
-
-		const request = new Request('http://localhost/api/conversations');
-
-		// @ts-expect-error ignore for testing purposes only
-		const response = await GET({ request, params: {} });
-
-		expect(response.status).toBe(500);
-		const data = await response.json();
-		expect(data.error).toEqual({
-			code: 'FETCH_ERROR',
-			message: 'Failed to fetch conversations'
-		});
-	});
-
-	it('should truncate long titles', async () => {
-		const longTitle = 'A'.repeat(100); // 100 characters
-
-		// Mock readdir to return one conversation
-		(vi.mocked(readdir) as Mock).mockResolvedValueOnce(['conv1']);
-
-		// Mock stat
-		(vi.mocked(stat) as Mock).mockResolvedValueOnce({
-			isDirectory: () => true,
-			mtime: new Date('2023-01-01T10:00:00Z'),
-			birthtime: new Date('2023-01-01T09:00:00Z')
+	describe('POST /api/chat validation', () => {
+		it('rejects a body that is not JSON', async () => {
+			expect((await post('not json')).status).toBe(400);
 		});
 
-		// Mock readdir for conversation directory
-		(vi.mocked(readdir) as Mock).mockResolvedValueOnce(['0001.user.md']);
+		it('requires a message unless resuming', async () => {
+			expect((await post({ message: '   ' })).status).toBe(400);
+		});
 
-		// Mock readFile with long content
-		(vi.mocked(readFile) as Mock).mockResolvedValueOnce(longTitle);
+		it('rejects an invalid conversation id', async () => {
+			const response = await post({ message: 'hi', conversation: '../secret' });
+			expect(response.status).toBe(400);
+		});
 
-		const request = new Request('http://localhost/api/conversations');
+		it('returns 404 for an unknown conversation', async () => {
+			const response = await post({ message: 'hi', conversation: UNKNOWN });
+			expect(response.status).toBe(404);
+		});
 
-		// @ts-expect-error ignore for testing purposes only
-		const response = await GET({ request, params: {} });
-
-		expect(response.status).toBe(200);
-		const data = await response.json();
-
-		// Check that the title is truncated
-		expect(data.conversations[0].title).toHaveLength(53); // 50 chars + '...'
-		expect(data.conversations[0].title).toContain('...');
+		it('refuses to resume a thread whose last run finished', async () => {
+			const response = await post({ resume: true, conversation: WITH_MESSAGES });
+			expect(response.status).toBe(409);
+			expect((await response.json()).error.code).toBe('RUN_NOT_RESUMABLE');
+		});
 	});
 });

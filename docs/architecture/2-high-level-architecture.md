@@ -3,7 +3,7 @@
 ## 2.1 System Context & Goals
 
 - Deliver a **teachable** agent system with **one-command setup**, **transparent reasoning**, and **local inference and local state by default, with explicit network access through configured tools**.
-- Stack layers: **SvelteKit UI**, **LangGraph.js** engine, **Ollama (Qwen3)** LLM, **MCP** tool servers (Memory, Fetch), **Markdown** persistence, **Docker Compose** orchestration.
+- Stack layers: **SvelteKit UI**, **LangGraph.js** engine, **Ollama (Qwen3)** LLM, **MCP** tool servers (Memory, Fetch), **SQLite** persistence with LangGraph checkpoints, **Docker Compose** orchestration.
 
 ## 2.2 Context Diagram
 
@@ -15,19 +15,19 @@ flowchart LR
   LG -->|MCPAdapter| MEM[Memory MCP]
   LG -->|MCPAdapter| FET[Fetch MCP]
   FET -->|outbound HTTP| NET((Internet))
-  LG --> LOG[Markdown + trace.jsonl]
+  LG -->|SqliteSaver| DB[(SQLite<br/>conversations, runs,<br/>checkpoints)]
   MEM --> KG[memory.jsonl]
 ```
 
-The UI and the agent run in one Node process (the `web` service). The agent talks to Ollama over HTTP and to MCP servers through a single `MCPAdapter`. In Docker Compose the MCP servers are reachable only on the internal Compose network; only the web app is published, and only on `127.0.0.1`. Conversations and the knowledge graph are bind-mounted into the repository's `data/` directory.
+The UI and the agent run in one Node process (the `web` service). The agent talks to Ollama over HTTP and to MCP servers through a single `MCPAdapter`. In Docker Compose the MCP servers are reachable only on the internal Compose network; only the web app is published, and only on `127.0.0.1`. The SQLite database and the knowledge graph are bind-mounted into the repository's `data/` directory.
 
 ## 2.3 Core Components
 
 - **Frontend (SvelteKit + Tailwind):** chat UI, conversation list, reasoning trace viewer.
-- **Agent Engine (LangGraph.js):** an explicit two-node `StateGraph` (`agent` ⇄ `tools`) in `src/lib/agent/index.ts`; emits `TraceNote` events. There is no tool policy layer yet: every discovered tool is bound to the model.
+- **Agent Engine (LangGraph.js):** an explicit two-node `StateGraph` (`agent` ⇄ `tools`) in `src/lib/agent/graph.ts`, compiled with a SQLite checkpointer; emits `TraceNote` events. There is no tool policy layer yet: every discovered tool is bound to the model.
 - **LLM Runtime (Ollama):** local inference. Ollama runs on the host; it is **not** part of the Compose stack.
 - **MCP Tools:** Memory & Fetch via `@langchain/mcp-adapters` 2.x (`MCPAdapter`), configured in `mcp.json`.
-- **Persistence:** Markdown turns + `trace.jsonl` per conversation; the Memory MCP keeps its own `memory.jsonl`.
+- **Persistence:** SQLite (`data/db/sophos.db`): application tables + LangGraph checkpoints, so conversations and unfinished runs survive restarts ([3a](./3a-durable-execution-persistence.md)). Markdown is an on-demand export. The Memory MCP keeps its own `memory.jsonl`.
 - **Orchestration:** Docker Compose, loopback-only by default.
 
 ## 2.4 Non-Functional Targets

@@ -16,7 +16,7 @@
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint .",
-		"test:unit": "CHAT_DIR=data/test/chat vitest",
+		"test:unit": "vitest",
 		"test": "pnpm run test:unit --run && pnpm run test:e2e",
 		"test:e2e": "playwright test"
 	},
@@ -31,6 +31,7 @@
 		"@tailwindcss/forms": "^0.5.11",
 		"@tailwindcss/typography": "^0.5.19",
 		"@tailwindcss/vite": "^4.1.18",
+		"@types/better-sqlite3": "^9.6.0",
 		"@types/node": "^22",
 		"@vitest/browser": "^3.2.4",
 		"eslint": "^9.39.2",
@@ -54,8 +55,10 @@
 	"dependencies": {
 		"@langchain/core": "^1.2.14",
 		"@langchain/langgraph": "^1.4.18",
+		"@langchain/langgraph-checkpoint-sqlite": "^1.0.4",
 		"@langchain/mcp-adapters": "^2.0.0",
 		"@langchain/ollama": "^1.1.0",
+		"better-sqlite3": "^12.11.1",
 		"zod": "^4.6.5"
 	}
 }

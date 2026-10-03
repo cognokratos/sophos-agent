@@ -4,17 +4,17 @@ Defined in `infra/compose.yml`; started with `make start` (or `make inspector`).
 
 ## Services
 
-| Service         | Image / build                                  | Published to host         | Reached by the app at        | Volumes                               |
-| --------------- | ---------------------------------------------- | ------------------------- | ---------------------------- | ------------------------------------- |
-| `web`           | `infra/app/Dockerfile` (SvelteKit + agent)     | `127.0.0.1:5173`          | —                            | `infra/app/config` (ro), `data/chat/` |
-| `mcp-memory`    | `infra/mcp/memory/Dockerfile`                  | **not published**         | `http://mcp-memory:8080/mcp` | `data/memory/` → `/data/memory`       |
-| `mcp-fetch`     | `infra/mcp/fetch/Dockerfile`                   | **not published**         | `http://mcp-fetch:8080/mcp`  | —                                     |
-| `mcp-inspector` | `ghcr.io/modelcontextprotocol/inspector:2.9.0` | `127.0.0.1:6274` (opt-in) | —                            | —                                     |
+| Service         | Image / build                                  | Published to host         | Reached by the app at        | Volumes                             |
+| --------------- | ---------------------------------------------- | ------------------------- | ---------------------------- | ----------------------------------- |
+| `web`           | `infra/app/Dockerfile` (SvelteKit + agent)     | `127.0.0.1:5173`          | —                            | `infra/app/config` (ro), `data/db/` |
+| `mcp-memory`    | `infra/mcp/memory/Dockerfile`                  | **not published**         | `http://mcp-memory:8080/mcp` | `data/memory/` → `/data/memory`     |
+| `mcp-fetch`     | `infra/mcp/fetch/Dockerfile`                   | **not published**         | `http://mcp-fetch:8080/mcp`  | —                                   |
+| `mcp-inspector` | `ghcr.io/modelcontextprotocol/inspector:2.9.0` | `127.0.0.1:6274` (opt-in) | —                            | —                                   |
 
 - Ollama is **not** a Compose service. The app reaches the host's Ollama through `OLLAMA_HOST` (default `http://host.docker.internal:11434` in `infra/.env.example`).
 - Each MCP server is a stdio server wrapped by `mcp-proxy`, which serves Streamable HTTP on `/mcp` (and legacy SSE on `/sse`) inside the container.
 - The Memory server writes to `MEMORY_FILE_PATH=/data/memory/memory.jsonl`, set in `compose.yml` next to the volume, so the knowledge graph persists in the repository's `data/memory/`.
-- `web` reads `CONFIG_DIR=config` and `CHAT_DIR=data/chat` from `compose.yml`; `infra/.env` holds only Ollama and UI settings.
+- `web` reads `CONFIG_DIR=config` and `DATABASE_PATH=data/db/sophos.db` from `compose.yml` and mounts the repository's `data/db/` (a directory, because SQLite writes `-wal`/`-shm` files next to the database); `infra/.env` holds only Ollama and agent settings.
 
 ## Profiles
 

@@ -21,3 +21,14 @@ export async function getSystemMessage() {
 	}
 	return message;
 }
+
+/**
+ * LangGraph `recursionLimit`: the maximum number of graph steps in one run.
+ * Every node execution is one step, so an agent → tools round trip costs two;
+ * the default of 25 allows about 12 model calls. Exceeding it raises
+ * `GraphRecursionError`, which stops an accidental agent/tool loop.
+ */
+export function getRecursionLimit(): number {
+	const limit = Number.parseInt(env.AGENT_RECURSION_LIMIT || '', 10);
+	return Number.isInteger(limit) && limit > 0 ? limit : 25;
+}

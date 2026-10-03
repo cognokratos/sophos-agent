@@ -1,242 +1,147 @@
-import { env } from '$env/dynamic/private';
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import {
-	type ChatError,
-	type ChatMessage,
-	type ChatSession,
-	formatEvent,
-	formatTraceNote,
-	sendEvent,
-	type Subscriber
-} from '$lib/chat';
-import { runAgent } from '$lib/agent';
-import {
-	getConversationMessages,
-	getNextTurn,
-	writeMessageFile,
-	writeTrace
-} from '$lib/agent/persistence';
-import type { UUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
+import { type ChatError, formatEvent, type Subscriber } from '$lib/chat';
+import { getThreadState } from '$lib/agent';
+import { getActiveRun, startRun, subscribe } from '$lib/agent/runs';
+import { getDatabase } from '$lib/agent/persistence/database';
+import { createConversation, getConversation } from '$lib/agent/persistence/conversations';
 import { parseUuid } from '$lib/utils';
 
-const SHOW_TOOLS = env.SHOW_TOOLS?.toLowerCase() === 'true';
-
-const sessions = new Map<UUID, ChatSession>();
-
-export const POST: RequestHandler = async ({ request }) => {
-	const body = await request.json();
-
-	const message = body.message;
-	if (!message || typeof message !== 'string' || message.trim() === '') {
-		const error: ChatError = {
-			code: 'BAD_REQUEST',
-			message: 'Message is required'
-		};
-		return json({ error }, { status: 400 });
-	}
-
-	const conversationStr = body.conversation;
-	if (conversationStr && typeof conversationStr !== 'string') {
-		const error: ChatError = { code: 'BAD_REQUEST', message: 'Invalid Conversation ID' };
-		return json({ error }, { status: 400 });
-	}
-	const conversationId = parseUuid(conversationStr) ?? crypto.randomUUID();
-
-	const session = sessions.get(conversationId);
-
-	if (session?.status === 'pending' || session?.status === 'streaming') {
-		const error: ChatError = {
-			code: 'SESSION_IN_PROGRESS',
-			message: 'Previous request still in progress'
-		};
-		return json({ error }, { status: 409 });
-	}
-
-	const newSession: ChatSession = {
-		conversation: conversationId,
-		status: 'pending',
-		createdAt: Date.now(),
-		updatedAt: Date.now(),
-		subscribers: new Set(),
-		events: [],
-		tokenIndex: 0
-	};
-	sessions.set(conversationId, newSession);
-
-	startAgent(conversationId, newSession, message);
-
-	return json({ conversation: conversationId, session: newSession });
-};
-
-async function startAgent(conversationId: UUID, session: ChatSession, message: string) {
-	try {
-		const chatHistory = await getConversationMessages(conversationId);
-		const userTurn = await getNextTurn(conversationId);
-		const userMessage: ChatMessage = {
-			conversation: conversationId,
-			id: crypto.randomUUID(),
-			role: 'user',
-			content: message
-		};
-		await writeMessageFile(conversationId, userTurn, userMessage);
-
-		session.status = 'streaming';
-		session.updatedAt = Date.now();
-
-		const assistantTurn = await getNextTurn(conversationId);
-		const assistantMessage: ChatMessage = {
-			conversation: conversationId,
-			id: crypto.randomUUID(),
-			role: 'assistant',
-			content: ''
-		};
-
-		for await (const event of runAgent(assistantTurn, userMessage, chatHistory)) {
-			session.updatedAt = Date.now();
-			const id = String(++session.tokenIndex!);
-
-			switch (event.type) {
-				case 'token':
-					assistantMessage.content += event.data;
-					sendEvent('token', id, event.data, session);
-					break;
-				case 'trace':
-					await writeTrace(conversationId, event.data);
-
-					if (SHOW_TOOLS) {
-						const noteMessage = formatTraceNote(event.data);
-						assistantMessage.content += noteMessage;
-						sendEvent('token', id, noteMessage, session);
-					}
-
-					sendEvent('trace', id, event.data, session);
-					break;
-				case 'end':
-					session.status = 'done';
-					await writeMessageFile(conversationId, assistantTurn, assistantMessage);
-
-					sendEvent('end', id, session, session);
-					break;
-			}
-		}
-	} catch (e: unknown) {
-		console.error(`Agent failure for conversation ${conversationId}`, e);
-		const error: ChatError = {
-			code: 'AGENT_FAILURE',
-			message: e instanceof Error ? e.message : 'Agent failed',
-			conversation: conversationId
-		};
-		session.status = 'error';
-		session.error = error;
-		session.updatedAt = Date.now();
-		const errId = String(++session.tokenIndex!);
-		sendEvent('chat-error', errId, error, session);
-	}
+function badRequest(message: string, status = 400, code: ChatError['code'] = 'BAD_REQUEST') {
+	const error: ChatError = { code, message };
+	return json({ error }, { status });
 }
 
-const EVENT_STREAM_HEADER = {
-	headers: { 'Content-Type': 'text/event-stream' }
+/**
+ * Starts a run.
+ *
+ *   { message }                 new conversation
+ *   { message, conversation }   next turn of an existing conversation
+ *   { resume: true, conversation }  continue an interrupted/failed run from its last checkpoint
+ *
+ * Returns immediately; output is streamed by `GET /api/chat?conversation=…`.
+ */
+export const POST: RequestHandler = async ({ request }) => {
+	let body: { message?: unknown; conversation?: unknown; resume?: unknown };
+	try {
+		body = await request.json();
+	} catch {
+		return badRequest('Request body must be JSON');
+	}
+
+	const resume = body.resume === true;
+	const message = typeof body.message === 'string' ? body.message.trim() : '';
+	if (!resume && !message) {
+		return badRequest('Message is required');
+	}
+
+	const db = getDatabase();
+	let conversationId: string;
+
+	if (body.conversation === undefined || body.conversation === null) {
+		if (resume) {
+			return badRequest('A conversation is required to resume');
+		}
+		conversationId = randomUUID();
+		createConversation(db, conversationId, message);
+	} else {
+		const parsed = typeof body.conversation === 'string' ? parseUuid(body.conversation) : null;
+		if (!parsed) {
+			return badRequest('Invalid Conversation ID');
+		}
+		if (!getConversation(db, parsed)) {
+			return badRequest('Conversation Not Found', 404, 'NOT_FOUND');
+		}
+		conversationId = parsed;
+	}
+
+	if (getActiveRun(conversationId)) {
+		return badRequest('Previous request still in progress', 409, 'SESSION_IN_PROGRESS');
+	}
+
+	if (resume) {
+		const { next } = await getThreadState(conversationId);
+		if (next.length === 0) {
+			return badRequest('Nothing to resume: the last run finished', 409, 'RUN_NOT_RESUMABLE');
+		}
+	}
+
+	const run = startRun(conversationId, resume ? { resume: true } : { message });
+	return json({ conversation: conversationId, run: run.runId });
 };
 
+const EVENT_STREAM_HEADERS = {
+	'Content-Type': 'text/event-stream',
+	'Cache-Control': 'no-cache, no-transform',
+	Connection: 'keep-alive'
+};
+
+function singleEvent(code: Parameters<Subscriber>[0], data: unknown) {
+	return new Response(formatEvent(code, data), { headers: EVENT_STREAM_HEADERS });
+}
+
+/**
+ * SSE stream of the conversation's active run. If no run is active, the
+ * durable state answers: `end` (with the last run's status) or `chat-error`.
+ */
 export const GET: RequestHandler = ({ url, request }) => {
-	const conversationStr = url.searchParams.get('conversation');
-	const conversationId = parseUuid(conversationStr);
+	const conversationId = parseUuid(url.searchParams.get('conversation'));
 	if (!conversationId) {
-		const error: ChatError = {
-			code: 'BAD_REQUEST',
-			message: 'Invalid Conversation ID'
-		};
-		return new Response(formatEvent('chat-error', error), EVENT_STREAM_HEADER);
+		return singleEvent('chat-error', { code: 'BAD_REQUEST', message: 'Invalid Conversation ID' });
 	}
-	const session = sessions.get(conversationId);
-	if (!session) {
-		const error: ChatError = {
-			code: 'NOT_FOUND',
-			message: 'Conversation Not Found',
-			conversation: conversationId
-		};
-		return new Response(formatEvent('chat-error', error), EVENT_STREAM_HEADER);
+
+	const run = getActiveRun(conversationId);
+	if (!run) {
+		const conversation = getConversation(getDatabase(), conversationId);
+		if (!conversation) {
+			const error: ChatError = {
+				code: 'NOT_FOUND',
+				message: 'Conversation Not Found',
+				conversation: conversationId
+			};
+			return singleEvent('chat-error', error);
+		}
+		return singleEvent('end', { conversation: conversationId, status: conversation.status });
 	}
-	if (session.status === 'done') {
-		return new Response(formatEvent('end', session), EVENT_STREAM_HEADER);
-	}
-	if (session.status === 'error') {
-		return new Response(formatEvent('chat-error', session.error), EVENT_STREAM_HEADER);
-	}
+
+	const lastEventId = Number(request.headers.get('last-event-id') ?? 0) || 0;
 
 	const stream = new ReadableStream({
 		start(controller) {
 			const encoder = new TextEncoder();
 			let closed = false;
-			const send: Subscriber = (code, data, id) => {
-				if (closed) {
-					return;
-				}
+
+			const close = () => {
+				if (closed) return;
+				closed = true;
+				clearInterval(pingInterval);
+				unsubscribe();
 				try {
-					const payload = formatEvent(code, data, id);
+					controller.close();
+				} catch {
+					/* already closed */
+				}
+			};
+			const write = (payload: string) => {
+				if (closed) return;
+				try {
 					controller.enqueue(encoder.encode(payload));
 				} catch {
-					closed = true;
+					close();
 				}
 			};
-			const sink: Subscriber = (code, data, id) => {
-				send(code, data, id);
-			};
 
-			const pingInterval = setInterval(() => {
-				send('ping', '');
-			}, 15000);
-
-			request.signal.addEventListener('abort', () => {
-				clearInterval(pingInterval);
-				session.subscribers.delete(sink);
-				closed = true;
+			const pingInterval = setInterval(() => write(formatEvent('ping', '')), 15000);
+			const unsubscribe = subscribe(run, lastEventId, write, (code, data, id) => {
+				write(formatEvent(code, data, id));
+				if (code === 'end' || code === 'chat-error') {
+					close();
+				}
 			});
-
-			const lastEventId = request.headers.get('last-event-id');
-
-			let lastIndex = 0;
-			if (lastEventId) {
-				const parsed = Number(lastEventId);
-				if (!Number.isNaN(parsed)) lastIndex = parsed;
-			}
-
-			for (const eventStr of session.events) {
-				const match = eventStr.match(/^id:\s*(\d+)/m);
-				const idNum = match ? Number(match[1]) : 0;
-				if (idNum > lastIndex)
-					try {
-						controller.enqueue(encoder.encode(eventStr));
-					} catch {
-						/* ignore */
-					}
-			}
-
-			switch (session.status) {
-				case 'streaming':
-				case 'pending':
-					session.subscribers.add(sink);
-					break;
-				case 'done':
-					send('end', session, String(session.tokenIndex ?? 0));
-					break;
-				case 'error': {
-					const error: ChatError = session.error ?? {
-						code: 'UNKNOWN_ERROR',
-						message: 'Unknown error'
-					};
-					send('chat-error', error, String(session.tokenIndex ?? 0));
-				}
-			}
+			request.signal.addEventListener('abort', close);
 		}
 	});
 
-	return new Response(stream, {
-		headers: {
-			'Content-Type': 'text/event-stream',
-			'Cache-Control': 'no-cache, no-transform',
-			Connection: 'keep-alive'
-		}
-	});
+	return new Response(stream, { headers: EVENT_STREAM_HEADERS });
 };

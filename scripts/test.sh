@@ -16,7 +16,7 @@ function cleanup() {
 
 trap cleanup EXIT
 
-mkdir -p data/chat data/memory
+mkdir -p data/db data/memory
 
 # --wait blocks until every service's healthcheck passes (web /api/healthz,
 # Memory MCP /ping, Fetch MCP /status). The MCP servers are not published to
