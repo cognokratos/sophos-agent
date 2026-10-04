@@ -1,37 +1,41 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
+	import { resolve } from '$app/paths';
 	import { safeJsonParse, parseUuid } from '$lib/utils';
-	import { type ChatError, type TraceNote } from '$lib/chat';
+	import type {
+		ChatError,
+		ConversationDetail,
+		ConversationSummary,
+		MessageDto,
+		TraceNote
+	} from '$lib/chat';
 	import type { UUID } from 'crypto';
 	import ConversationList from '$lib/components/ConversationList.svelte';
-	import type { ConversationMetadata } from '$lib/agent/persistence';
 	import TraceNoteList from '$lib/components/TraceNoteList.svelte';
+	import Markdown from '$lib/components/Markdown.svelte';
 
 	import bg from '$lib/assets/bg.webp?enhanced';
 
-	// --- Types ---
-	type Msg = {
-		id: string;
-		role: 'user' | 'assistant';
-		content: string;
-	};
-
 	// --- State ---
-	let messages = $state<Msg[]>([]);
+	// `messages` mirrors the conversation's LangGraph thread (GET /api/conversations/:id).
+	// While a run streams, tokens and tool results are appended locally; when the
+	// run ends the conversation is reloaded, so the server stays the source of truth.
+	let messages = $state<MessageDto[]>([]);
 	let last = $derived(messages.at(-1));
 	let traceNotes = $state<TraceNote[]>([]);
 	let input = $state('');
 	let error = $state<{ code: string; message: string } | null>(null);
 	let conversation = $state<UUID | null>(null);
+	let resumable = $state(false);
 	let isStreaming = $state(false);
 	let isLoadingHistory = $state(false);
-	let conversations = $state<ConversationMetadata[]>([]);
+	let conversations = $state<ConversationSummary[]>([]);
 	let isLoadingConversations = $state(false);
 
 	let eventSource: EventSource | null = null;
 	let chatContainer: HTMLElement;
-	let isSseStarting = $state(false);
 	let initialized = false;
+	let liveId = 0;
 
 	// --- Derived state ---
 	const isSubmitDisabled = $derived(isStreaming || input.trim() === '');
@@ -41,327 +45,229 @@
 		if (!browser || initialized) return;
 		initialized = true;
 
-		console.log('Effect: Component mounted. Loading conversation history.');
-		loadConversations();
 		loadConversationHistory();
 
 		return () => {
-			console.log('Effect: Component destroying. Closing EventSource.');
 			eventSource?.close();
 		};
 	});
 
 	$effect(() => {
 		if (chatContainer && messages.length) {
-			console.log('Effect: Messages changed, auto-scrolling to bottom.');
 			chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: 'smooth' });
 		}
 	});
 
-	// Update conversation list when new conversation is created
-	$effect(() => {
-		if (conversation && !conversations.some((c) => c.id === conversation)) {
-			// If this is a new conversation not in the list, reload the list
-			loadConversations();
-		}
-	});
-
 	// --- Load conversation list ---
-	async function loadConversations() {
-		if (!browser) return;
-
-		console.log('loadConversations: Attempting to load conversation list...');
+	async function loadConversations(): Promise<ConversationSummary[]> {
+		if (!browser) return [];
 		isLoadingConversations = true;
-
 		try {
 			const response = await fetch('/api/conversations');
 			if (!response.ok) {
 				throw new Error(`Failed to get conversations: ${response.status}`);
 			}
-
-			const { conversations: convList } = await response.json();
-			conversations = convList.map((conv: ConversationMetadata) => ({
-				...conv,
-				updatedAt: new Date(conv.updatedAt)
-			}));
-
-			console.log(`loadConversations: Loaded ${conversations.length} conversations`);
+			conversations = (await response.json()).conversations;
 		} catch (err) {
-			console.error('loadConversations: Error loading conversations:', err);
+			console.error('loadConversations:', err);
 			error = { code: 'LOAD_CONVERSATIONS_ERROR', message: 'Failed to load conversations' };
 		} finally {
 			isLoadingConversations = false;
 		}
+		return conversations;
 	}
 
-	// --- Load conversation history ---
+	// --- Open the most recent conversation on start ---
 	async function loadConversationHistory() {
-		if (!browser) return;
-
-		console.log('loadConversationHistory: Attempting to load most recent conversation...');
-		isLoadingHistory = true;
-
-		try {
-			// First, get the most recent conversation ID
-			const recentResponse = await fetch('/api/conversations');
-			if (!recentResponse.ok) {
-				throw new Error(`Failed to get recent conversation: ${recentResponse.status}`);
-			}
-
-			const { conversations: convList } = await recentResponse.json();
-			const mostRecent = convList.length > 0 ? convList[0] : null;
-
-			if (mostRecent) {
-				console.log(`loadConversationHistory: Found most recent conversation: ${mostRecent.id}`);
-
-				// Load the messages from the conversation
-				await loadConversation(mostRecent.id);
-			} else {
-				console.log('loadConversationHistory: No recent conversation found, starting fresh');
-				messages = [];
-				conversation = null;
-			}
-		} catch (err) {
-			console.error('loadConversationHistory: Error loading conversation history:', err);
-			error = { code: 'LOAD_HISTORY_ERROR', message: 'Failed to load conversation history' };
-		} finally {
-			isLoadingHistory = false;
+		const list = await loadConversations();
+		const mostRecent = parseUuid(list[0]?.id ?? null);
+		if (mostRecent) {
+			await loadConversation(mostRecent);
 		}
 	}
 
-	// --- Load specific conversation ---
+	// --- Load a conversation from durable state ---
 	async function loadConversation(conversationId: UUID) {
 		if (!browser) return;
-
-		console.log(`loadConversation: Loading conversation: ${conversationId}`);
 		isLoadingHistory = true;
-
 		try {
-			// Load the messages from the conversation
-			const messagesResponse = await fetch(
-				`/api/conversations/${encodeURIComponent(conversationId)}`
-			);
-			if (!messagesResponse.ok) {
-				throw new Error(`Failed to load conversation: ${messagesResponse.status}`);
+			const response = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}`);
+			if (!response.ok) {
+				throw new Error(`Failed to load conversation: ${response.status}`);
 			}
-
-			const { messages: loadedMessages } = await messagesResponse.json();
-
-			// Update state with loaded messages
-			messages = loadedMessages.map((msg: Msg, index: number) => ({
-				id: `message_${index}`,
-				role: msg.role,
-				content: msg.content
-			}));
-
-			conversation = parseUuid(conversationId);
-			console.log(
-				`loadConversation: Loaded ${loadedMessages.length} messages from conversation: ${conversation}`
-			);
-			if (conversation && last?.role === 'user') {
-				resumeSession(conversation);
+			const detail: ConversationDetail = await response.json();
+			messages = detail.messages;
+			conversation = conversationId;
+			resumable = detail.resumable;
+			if (detail.conversation.status === 'failed' && detail.conversation.error) {
+				error = detail.conversation.error;
+			}
+			if (detail.conversation.status === 'running') {
+				startSse(conversationId); // a run is in progress: attach to its stream
 			}
 		} catch (err) {
-			console.error('loadConversation: Error loading conversation:', err);
+			console.error('loadConversation:', err);
 			error = { code: 'LOAD_CONVERSATION_ERROR', message: 'Failed to load conversation' };
 		} finally {
 			isLoadingHistory = false;
 		}
 	}
 
-	// --- SSE Handling ---
+	// --- Live updates while a run streams ---
 	function appendToken(token: string) {
-		if (last?.role === 'assistant') {
+		if (last?.role === 'assistant' && !last.toolCalls?.length) {
 			last.content += token;
+		} else {
+			messages.push({ id: `live_${++liveId}`, role: 'assistant', content: token });
 		}
 	}
 
-	function finalizeStream() {
-		console.log('finalizeStream: Closing EventSource, resetting streaming state.');
+	function onTrace(note: TraceNote) {
+		traceNotes.push(note);
+		const data = note.data ?? {};
+		if (note.event === 'call') {
+			const call = { id: String(data.tool_call_id ?? ''), name: String(data.name), args: {} };
+			if (last?.role === 'assistant') {
+				last.toolCalls = [...(last.toolCalls ?? []), call];
+			} else {
+				messages.push({
+					id: `live_${++liveId}`,
+					role: 'assistant',
+					content: '',
+					toolCalls: [call]
+				});
+			}
+		} else if (note.event === 'result') {
+			messages.push({
+				id: `live_${++liveId}`,
+				role: 'tool',
+				name: String(data.name),
+				toolCallId: String(data.tool_call_id),
+				content: String(data.result ?? '')
+			});
+		}
+	}
+
+	function closeStream() {
 		eventSource?.close();
 		eventSource = null;
 		isStreaming = false;
-		isSseStarting = false;
-		loadConversations();
 	}
 
-	function stopStream() {
-		console.log('stopStream: User initiated stop.');
-		// User-initiated stop clears the session
-		finalizeStream();
+	/** The run finished (or failed): reload the authoritative conversation state. */
+	async function finishStream() {
+		closeStream();
+		await loadConversations();
+		if (conversation) {
+			await loadConversation(conversation);
+		}
 	}
 
 	function startSse(conversationId: UUID) {
-		if (isSseStarting || eventSource) {
-			console.warn('startSse: SSE stream already starting or active. Aborting new start.');
-			return;
-		}
+		if (eventSource) return;
 
-		isSseStarting = true;
-		console.log(`startSse: Starting SSE for conversation ${conversationId}`);
 		eventSource = new EventSource(`/api/chat?conversation=${encodeURIComponent(conversationId)}`);
 		isStreaming = true;
+		resumable = false;
 		error = null;
-
-		if (last?.role !== 'assistant') {
-			console.log('startSse: Adding new assistant message placeholder.');
-			messages.push({ id: `message_${messages.length}`, role: 'assistant', content: '' });
-		}
-
-		eventSource.onopen = () => {
-			console.log('SSE: Connection opened.');
-			isSseStarting = false;
-		};
 
 		eventSource.addEventListener('token', (e) => {
 			const data = safeJsonParse<string>(e.data, '');
-			if (data) {
-				appendToken(data);
-			}
+			if (data) appendToken(data);
 		});
 
 		eventSource.addEventListener('trace', (e) => {
-			const traceData = safeJsonParse<TraceNote | null>(e.data, null);
-			if (!traceData) {
-				return;
-			}
-			traceNotes.push(traceData);
+			const note = safeJsonParse<TraceNote | null>(e.data, null);
+			if (note) onTrace(note);
 		});
 
-		eventSource.onmessage = (e) => {
-			console.log('SSE event: message (fallback)', e.data);
-			appendToken(e.data); // Fallback
-		};
-
-		eventSource.addEventListener('end', (e) => {
-			console.log('SSE event: end. Finalizing stream.', e.lastEventId);
-			finalizeStream();
+		eventSource.addEventListener('end', () => {
+			finishStream();
 		});
 
 		eventSource.addEventListener('chat-error', (e) => {
-			console.error('SSE event: chat error', e);
-			const err = safeJsonParse<ChatError | null>(e.data, null);
-			error = err ?? { code: 'UNKNOWN_ERROR', message: 'Unknown error.' };
-			finalizeStream();
+			error = safeJsonParse<ChatError | null>(e.data, null) ?? {
+				code: 'UNKNOWN_ERROR',
+				message: 'Unknown error.'
+			};
+			finishStream();
 		});
 
-		eventSource.onerror = (e) => {
-			console.error('SSE event: generic error', e);
+		eventSource.onerror = () => {
 			if (eventSource?.readyState === EventSource.CONNECTING) {
-				console.warn('SSE: Browser is attempting to reconnect, ignoring transient error.');
-				return;
+				return; // the browser reconnects and resumes with Last-Event-ID
 			}
 			error = { code: 'SSE_ERROR', message: 'Connection failed.' };
-			finalizeStream();
+			closeStream();
 		};
-
-		eventSource.addEventListener('ping', () => {
-			console.log('SSE event: ping');
-		});
 	}
 
-	function resumeSession(conversationId: UUID) {
-		console.log(`resumeSession: Attempting to resume conversation: ${conversationId}`);
-		startSse(conversationId); // Last-Event-ID handled by the browser automatically
+	// --- Start a run ---
+	async function postRun(body: { message?: string; resume?: boolean }): Promise<boolean> {
+		const response = await fetch('/api/chat', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ conversation, ...body })
+		});
+		const data = await response.json().catch(() => null);
+
+		if (!response.ok) {
+			if (data?.error?.code === 'SESSION_IN_PROGRESS' && conversation) {
+				startSse(conversation);
+				return false;
+			}
+			error = data?.error ?? { code: `HTTP_${response.status}`, message: response.statusText };
+			return false;
+		}
+
+		conversation = parseUuid(data.conversation);
+		await loadConversations();
+		return true;
 	}
 
 	async function handleSubmit(event: Event) {
 		event.preventDefault();
-		if (isSubmitDisabled) {
-			console.warn('handleSubmit: Submit blocked: streaming or input empty.');
-			return;
-		}
+		if (isSubmitDisabled) return;
 
-		traceNotes = []; // Clear previous traces
-		const userMessageText = input.trim();
-		const originalInput = input;
+		traceNotes = [];
+		const text = input.trim();
 		input = '';
-
-		console.log(
-			`handleSubmit: Submitting message: "${userMessageText}" for conversation: "${conversation}"`
-		);
-
-		const controller = new AbortController();
-		const timeoutId = setTimeout(() => {
-			console.warn('handleSubmit: POST request timed out.');
-			controller.abort();
-		}, 30000);
+		error = null;
 
 		try {
-			const response = await fetch('/api/chat', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ conversation, message: userMessageText }),
-				signal: controller.signal
-			});
-			clearTimeout(timeoutId);
-
-			console.log('handleSubmit: POST /api/chat response status:', response.status);
-
-			if (response.status === 409) {
-				if (conversation) {
-					console.log(
-						`handleSubmit: Got 409, conversation ${conversation} already in progress. Resuming.`
-					);
-					resumeSession(conversation);
-				}
-				return;
+			if (await postRun({ message: text })) {
+				messages.push({ id: `live_${++liveId}`, role: 'user', content: text });
+				if (conversation) startSse(conversation);
+			} else {
+				input = text; // restore input on error
 			}
+		} catch (e) {
+			console.error('handleSubmit:', e);
+			error = { code: 'FETCH_ERROR', message: 'Failed to connect to the server.' };
+			input = text;
+		}
+	}
 
-			if (!response.ok) {
-				let errJson;
-				try {
-					errJson = await response.json();
-					console.error('handleSubmit: POST error response JSON:', errJson);
-				} catch (e) {
-					console.error('handleSubmit: POST error response not JSON:', e);
-					// Ignore if body is not JSON
-				}
-				error = errJson?.error || { code: `HTTP_${response.status}`, message: response.statusText };
-				console.error('handleSubmit: Submit failed:', error);
-				messages.pop();
-				input = originalInput; // Restore input on error
-				return;
-			}
-
-			const data = await response.json();
-			console.log('handleSubmit: POST /api/chat successful, data:', data);
-			conversation = parseUuid(data.conversation);
-
-			// Add the user message to the conversation
-			messages.push({ id: `message_${messages.length}`, role: 'user', content: userMessageText });
-
-			// Update conversation list to reflect the new conversation
-			await loadConversations();
-			if (conversation) {
+	async function resumeRun() {
+		traceNotes = [];
+		error = null;
+		try {
+			if ((await postRun({ resume: true })) && conversation) {
 				startSse(conversation);
 			}
 		} catch (e) {
-			clearTimeout(timeoutId);
-			console.error('handleSubmit: Fetch failed:', e);
+			console.error('resumeRun:', e);
 			error = { code: 'FETCH_ERROR', message: 'Failed to connect to the server.' };
-			messages.pop();
-			input = originalInput; // Restore input on error
 		}
 	}
 
 	async function startNewConversation() {
-		console.log('startNewConversation: Initiating new conversation...');
-
 		clearChatState();
-
-		// Reset conversation to null to indicate a new, unsaved conversation
 		conversation = null;
-
-		// Reload the conversation list to update UI
 		await loadConversations();
-
-		console.log('startNewConversation: Conversation state reset. Ready for new conversation.');
 	}
 
-	// Handle conversation selection
 	function handleConversationSelect(id: string) {
-		console.log(`handleConversationSelect: Selected conversation: ${id}`);
 		clearChatState();
 		const conversationId = parseUuid(id);
 		if (conversationId) {
@@ -370,22 +276,12 @@
 	}
 
 	function clearChatState() {
-		console.log('clearChatState: Clearing chat state.');
-
-		// Close any existing SSE connection
-		if (eventSource) {
-			console.log('startNewConversation: Closing existing SSE connection.');
-			eventSource.close();
-			eventSource = null;
-		}
-
-		// Clear the current chat state
+		closeStream();
 		messages = [];
 		traceNotes = [];
 		input = '';
 		error = null;
-		isStreaming = false;
-		isSseStarting = false;
+		resumable = false;
 	}
 </script>
 
@@ -419,6 +315,15 @@
 						? 'Current: ' +
 							(conversations.find((c) => c.id === conversation)?.title || conversation)
 						: 'New conversation'}
+					{#if conversation}
+						<a
+							class="ml-2 underline hover:text-gray-200"
+							href={resolve('/api/conversations/[conversationId]/export', {
+								conversationId: conversation
+							})}
+							data-testid="export-link">Export</a
+						>
+					{/if}
 				</h2>
 			</div>
 		</header>
@@ -458,37 +363,68 @@
 							<p>{error.message}</p>
 						</div>
 					{/if}
+					{#if resumable && !isStreaming}
+						<div
+							class="mb-4 flex items-center justify-between rounded-lg bg-amber-700 p-4"
+							data-testid="resume-banner"
+						>
+							<p>The last run stopped before it finished. Its progress is saved.</p>
+							<button
+								type="button"
+								onclick={resumeRun}
+								class="ml-4 rounded bg-amber-500 px-3 py-1 font-bold hover:bg-amber-400"
+								data-testid="resume-button">Resume</button
+							>
+						</div>
+					{/if}
 					<div class="space-y-4">
 						{#each messages as message (message.id)}
-							{#if message.content}
+							{#if message.role === 'tool'}
+								<details
+									class="w-fit max-w-5/6 rounded-lg border border-gray-600 bg-gray-800/80 px-3 py-1 text-sm text-gray-300"
+									data-testid="tool-message"
+								>
+									<summary class="cursor-pointer font-mono"
+										>{message.status === 'error' ? '⚠' : '🔧'} {message.name}</summary
+									>
+									<pre
+										class="mt-1 max-h-64 overflow-auto font-mono text-xs whitespace-pre-wrap">{message.content}</pre>
+								</details>
+							{:else if message.content || message.toolCalls?.length}
 								<div class={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
 									<div
 										class={`w-fit max-w-5/6 rounded-lg px-4 py-2 ${
 											message.role === 'user' ? 'bg-blue-600 text-right' : 'bg-gray-700'
 										}`}
 									>
-										<p
-											class="font-sans whitespace-pre-wrap"
-											data-testid={message.role === 'user' ? 'user-message' : 'assistant-message'}
-										>
-											{message.content.trim().replaceAll('<br>', '\n')}
-										</p>
+										{#if message.content && message.role === 'assistant'}
+											<Markdown content={message.content} testid="assistant-message" />
+										{:else if message.content}
+											<p class="font-sans whitespace-pre-wrap" data-testid="user-message">
+												{message.content.trim()}
+											</p>
+										{/if}
+										{#each message.toolCalls ?? [] as call, i (`${message.id}_${i}`)}
+											<p class="font-mono text-xs text-gray-300" data-testid="tool-call">
+												→ {call.name}
+											</p>
+										{/each}
 									</div>
-								</div>
-							{:else}
-								<div
-									class="flex w-fit items-center justify-start space-x-1 rounded-lg bg-gray-700 px-4 py-2"
-								>
-									<span class="h-2 w-2 animate-pulse rounded-full bg-blue-500"></span>
-									<span
-										class="h-2 w-2 animate-pulse rounded-full bg-blue-500 [animation-delay:0.2s]"
-									></span>
-									<span
-										class="h-2 w-2 animate-pulse rounded-full bg-blue-500 [animation-delay:0.4s]"
-									></span>
 								</div>
 							{/if}
 						{/each}
+						{#if isStreaming && last?.role !== 'assistant'}
+							<div
+								class="flex w-fit items-center justify-start space-x-1 rounded-lg bg-gray-700 px-4 py-2"
+								data-testid="assistant-pending"
+							>
+								<span class="h-2 w-2 animate-pulse rounded-full bg-blue-500"></span>
+								<span class="h-2 w-2 animate-pulse rounded-full bg-blue-500 [animation-delay:0.2s]"
+								></span>
+								<span class="h-2 w-2 animate-pulse rounded-full bg-blue-500 [animation-delay:0.4s]"
+								></span>
+							</div>
+						{/if}
 					</div>
 				{/if}
 			</div>
@@ -508,11 +444,12 @@
 				{#if isStreaming}
 					<button
 						type="button"
-						onclick={stopStream}
+						onclick={closeStream}
 						class="rounded-r-lg bg-red-600 p-2 px-4 font-bold hover:bg-red-700"
-						aria-label="Stop generating response"
+						aria-label="Stop following the response (the run continues on the server)"
+						title="Stops following the response. The run itself continues on the server."
 					>
-						Stop
+						Detach
 					</button>
 				{:else}
 					<button

@@ -1,0 +1,11 @@
+# The app image is built with the repository root as context (see infra/compose.yml).
+# Keep local state, secrets and build output out of the build context.
+.git
+.env
+.env.*
+data
+node_modules
+.svelte-kit
+build
+test-results
+infra/.env

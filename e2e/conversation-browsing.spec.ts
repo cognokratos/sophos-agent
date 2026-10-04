@@ -1,16 +1,10 @@
 import { test, expect } from '@playwright/test';
-import { rm } from 'node:fs/promises';
 
-const CHAT_DIR = 'data/test/chat';
+// The test database (data/test/db) is reset by the webServer command in playwright.config.ts.
 
 test.describe('Conversation Browsing', () => {
 	test.beforeEach(async ({ page }) => {
-		await rm(CHAT_DIR, { recursive: true, force: true });
 		await page.goto('/');
-	});
-
-	test.afterAll(async () => {
-		await rm(CHAT_DIR, { recursive: true, force: true });
 	});
 
 	test('should display conversation list sidebar', async ({ page }) => {

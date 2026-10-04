@@ -3,13 +3,14 @@ FROM node:24-alpine AS builder
 
 WORKDIR /app
 
-# Install pnpm
-RUN npm install -g pnpm
+# Use the pnpm version pinned in package.json#packageManager (via Corepack)
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN corepack enable
 
 # Copy workspace files
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 
-# Install dependencies
+# Install dependencies exactly as locked
 RUN pnpm install --frozen-lockfile
 
 # Copy the application source code

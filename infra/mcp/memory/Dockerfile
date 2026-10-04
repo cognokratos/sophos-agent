@@ -1,21 +1,22 @@
 # syntax=docker/dockerfile:1
+#
+# Memory MCP server (stdio) exposed over Streamable HTTP by mcp-proxy.
+# Versions are pinned in package.json and locked in package-lock.json.
+# Reachable only on the internal Compose network as http://mcp-memory:8080/mcp.
 FROM node:24-alpine
 
-# Install deps
-WORKDIR /app
-# Keep versions in one place if you like; using latest here for brevity
-RUN npm i -g mcp-proxy
+WORKDIR /srv/app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund && npm cache clean --force
 
-# Non-root for safety
-RUN adduser -D mcp && chown -R mcp:mcp /app
+# Non-root user; the knowledge graph is written to the mounted /data/memory volume.
+RUN adduser -D mcp && mkdir -p /data/memory && chown mcp:mcp /data/memory
 USER mcp
 
-# Expose proxy port
+# MEMORY_FILE_PATH (read by server-memory) is set in infra/compose.yml next to the volume.
+ENV PATH=/srv/app/node_modules/.bin:$PATH
+
 EXPOSE 8080
 
-# Start the HTTP proxy which spawns the stdio Memory server.
-# Endpoints:
-#   - /mcp (Streamable HTTP)
-#   - /sse (Server-Sent Events)
-# Flags: --shell lets it run through a shell; `--` passes args to the child cmd
-CMD ["sh","-lc","mcp-proxy npx @modelcontextprotocol/server-memory"]
+# Endpoints: /mcp (Streamable HTTP), /sse (legacy SSE), /ping (health).
+CMD ["mcp-proxy", "--host", "0.0.0.0", "--port", "8080", "mcp-server-memory"]

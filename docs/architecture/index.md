@@ -1,8 +1,8 @@
-# Софос Agent — Full-Stack Architecture Document
+# Σοφός Agent — Full-Stack Architecture Document
 
 ## Table of Contents
 
-- [Софос Agent — Full-Stack Architecture Document](#table-of-contents)
+- [Σοφός Agent — Full-Stack Architecture Document](#table-of-contents)
   - [1) Introduction](./1-introduction.md)
     - [Starter Template or Existing Project](./1-introduction.md#starter-template-or-existing-project)
   - [2) High-Level Architecture](./2-high-level-architecture.md)
@@ -16,18 +16,21 @@
     - [3.3 Message Contracts (shared types)](./3-runtime-integration-details.md#33-message-contracts-shared-types)
     - [3.4 Streaming Protocol](./3-runtime-integration-details.md#34-streaming-protocol)
     - [3.5 Unified Error Envelope](./3-runtime-integration-details.md#35-unified-error-envelope)
-    - [3.6 Markdown Persistence Layout](./3-runtime-integration-details.md#36-markdown-persistence-layout)
+    - [3.6 Persistence](./3-runtime-integration-details.md#36-persistence)
+    - [3.7 MCP Integration](./3-runtime-integration-details.md#37-mcp-integration)
+  - [3a) Durable Execution & Persistence](./3a-durable-execution-persistence.md)
   - [4) Deployment Topology (Docker Compose)](./4-deployment-topology-docker-compose.md)
   - [5) Trade-off Decisions](./5-trade-off-decisions.md)
   - [6) Core Workflows](./6-core-workflows.md)
     - [6.1 Happy Path — Chat → LLM → Tools → Response](./6-core-workflows.md#61-happy-path-chat-llm-tools-response)
     - [6.2 Failure Paths (sketches)](./6-core-workflows.md#62-failure-paths-sketches)
   - [7) Developer Experience (DX)](./7-developer-experience-dx.md)
-    - [7.1 Monorepo Layout](./7-developer-experience-dx.md#71-monorepo-layout)
-    - [7.2 One-Command Setup](./7-developer-experience-dx.md#72-one-command-setup)
+    - [7.1 Repository Layout](./7-developer-experience-dx.md#71-repository-layout)
+    - [7.2 Setup](./7-developer-experience-dx.md#72-setup)
     - [7.3 Testing & QA](./7-developer-experience-dx.md#73-testing-qa)
   - [8) Monitoring & NFR Hooks (zero-SaaS)](./8-monitoring-nfr-hooks-zero-saas.md)
   - [9) Security Posture](./9-security-posture.md)
   - [10) Risks & Mitigations (excerpt)](./10-risks-mitigations-excerpt.md)
-  - [11) Roadmap (from PRD)](./11-roadmap-from-prd.md)
+  - [11) Roadmap](./11-roadmap-from-prd.md)
   - [12) Ownership & Artifacts](./12-ownership-artifacts.md)
+  - [Tech Stack](./tech-stack.md) · [Source Tree](./source-tree.md) · [Coding Standards](./coding-standards.md)

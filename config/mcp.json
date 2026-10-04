@@ -1,13 +1,13 @@
 {
 	"memory": {
 		"command": "npx",
-		"args": ["-y", "@modelcontextprotocol/server-memory"],
+		"args": ["-y", "@modelcontextprotocol/server-memory@2026.8.31"],
 		"env": {
-			"MEMORY_FILE_PATH": "$MEMORY_FILE_PATH"
+			"MEMORY_FILE_PATH": "${MEMORY_FILE_PATH}"
 		}
 	},
 	"fetch": {
 		"command": "uvx",
-		"args": ["mcp-server-fetch"]
+		"args": ["mcp-server-fetch@2026.8.18"]
 	}
 }

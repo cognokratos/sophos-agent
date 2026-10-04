@@ -2,7 +2,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { rm } from 'node:fs/promises';
 
-const CHAT_DIR = 'data/test/chat';
 const MEMORY_DIR = 'data/test/memory';
 
 // Helpers
@@ -42,7 +41,6 @@ async function expandTraceAndExpectToolCall(page: Page) {
 // Suite
 test.describe('MCP Examples Test', () => {
 	test.beforeAll(async () => {
-		await rm(CHAT_DIR, { recursive: true, force: true });
 		await rm(MEMORY_DIR, { recursive: true, force: true });
 	});
 
@@ -58,7 +56,6 @@ test.describe('MCP Examples Test', () => {
 
 	test.afterAll(async () => {
 		// Clean up chat from the test run
-		await rm(CHAT_DIR, { recursive: true, force: true });
 		await rm(MEMORY_DIR, { recursive: true, force: true });
 	});
 

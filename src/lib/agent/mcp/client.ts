@@ -1,116 +1,83 @@
-import { MultiServerMCPClient } from '@langchain/mcp-adapters';
+import { MCPAdapter } from '@langchain/mcp-adapters';
 import type { DynamicStructuredTool } from '@langchain/core/tools';
 import { loadMCPConfig } from './config';
 
 /**
- * Wrapper for the MultiServerMCPClient that handles initialization and tool retrieval
+ * Owns the process-wide `MCPAdapter` (one adapter, many servers) and exposes
+ * its tools as LangChain tools for the LangGraph `ToolNode`.
+ *
+ * Tool names are prefixed with the server name (`memory__read_graph`), so two
+ * servers may expose a tool with the same name without colliding.
  */
 export class MCPClientService {
-	private client: MultiServerMCPClient | null = null;
+	private adapter: MCPAdapter | null = null;
 	private initialized = false;
 
-	constructor() {}
-
 	/**
-	 * Initializes the MultiServerMCPClient with configured server connections
+	 * Loads `mcp.json`, connects to every configured server and discovers its tools.
 	 */
 	async initialize(): Promise<void> {
 		if (this.initialized) {
-			console.warn('MCPClientService already initialized');
 			return;
 		}
 
-		try {
-			// Load configuration for MCP servers
-			const serverConfigs = await loadMCPConfig();
-			const toolNames = Object.keys(serverConfigs);
+		const servers = await loadMCPConfig();
+		const serverNames = Object.keys(servers);
 
-			if (toolNames.length === 0) {
-				console.log('No MCP servers configured, skipping initialization');
-				this.initialized = true;
-				return;
-			}
-
-			// Initialize the MultiServerMCPClient
-			this.client = new MultiServerMCPClient({
-				mcpServers: serverConfigs
-			});
-
-			// Connect to all configured servers
-			await this.client.initializeConnections();
-
-			console.log(`MCPClientService initialized with ${toolNames.length} server(s)`);
-			toolNames.forEach((toolName, i) => {
-				console.log(`- tool ${i}: ${toolName}`);
-			});
+		if (serverNames.length === 0) {
+			console.info('No MCP servers configured; the agent will run without tools');
 			this.initialized = true;
+			return;
+		}
+
+		// Construction validates the config (Zod) but does not connect.
+		const adapter = new MCPAdapter({ servers, prefixToolNameWithServerName: true });
+		try {
+			// Discovery opens the connections and caches the tool list.
+			const tools = await adapter.listTools();
+			console.info(`MCP: connected to ${serverNames.join(', ')} (${tools.length} tools)`);
 		} catch (error) {
-			console.error('Failed to initialize MCPClientService:', error);
+			await adapter.close();
 			throw error;
 		}
+
+		this.adapter = adapter;
+		this.initialized = true;
 	}
 
-	/**
-	 * Checks if the client has been initialized
-	 */
 	isInitialized(): boolean {
 		return this.initialized;
 	}
 
 	/**
-	 * Retrieves all available tools from connected MCP servers
+	 * Returns the tools of all connected servers (served from the adapter's cache).
 	 */
-	async getTools(): Promise<DynamicStructuredTool[]> {
-		if (!this.initialized || !this.client) {
+	async listTools(): Promise<DynamicStructuredTool[]> {
+		if (!this.initialized) {
 			throw new Error('MCPClientService not initialized. Call initialize() first.');
 		}
-
-		try {
-			// Get all tools from all connected servers
-			return await this.client.getTools();
-		} catch (error) {
-			console.error('Failed to retrieve tools from MCP servers:', error);
-			throw error;
-		}
+		return this.adapter ? this.adapter.listTools() : [];
 	}
 
-	/**
-	 * Gets a specific tool by name from connected MCP servers
-	 */
 	async getToolByName(name: string): Promise<DynamicStructuredTool | null> {
-		if (!this.initialized || !this.client) {
-			throw new Error('MCPClientService not initialized. Call initialize() first.');
-		}
-
-		try {
-			// Find and return the specific tool
-			const allTools = await this.client.getTools();
-			return allTools.find((tool) => tool.name === name) || null;
-		} catch (error) {
-			console.error(`Failed to retrieve tool '${name}' from MCP servers:`, error);
-			throw error;
-		}
+		const tools = await this.listTools();
+		return tools.find((tool) => tool.name === name) ?? null;
 	}
 
 	/**
-	 * Disconnects from all MCP servers and cleans up resources
+	 * Closes all MCP connections (and stops stdio child processes).
+	 * The service can be initialized again afterwards.
 	 */
 	async dispose(): Promise<void> {
-		if (this.client) {
-			try {
-				await this.client.close();
-				console.log('MCPClientService disconnected from all servers');
-			} catch (error) {
-				console.error('Error disconnecting MCPClientService:', error);
-			} finally {
-				this.client = null;
-				this.initialized = false;
-			}
+		const adapter = this.adapter;
+		this.adapter = null;
+		this.initialized = false;
+		if (adapter) {
+			await adapter.close();
 		}
 	}
 }
 
-// Singleton instance of MCPClientService
 let mcpClientService: MCPClientService | null = null;
 
 /**
