@@ -19,6 +19,8 @@ let mcpReady: Promise<void> | null = null;
 /** Connects to the MCP servers on first use (shared by concurrent runs). */
 async function loadTools() {
 	const mcp = getMCPClientService();
+	// RESOURCE-OWNERSHIP: retries a failed discovery only. A connection lost
+	// after a successful discovery is not re-established until restart.
 	mcpReady ??= mcp.initialize().catch((error) => {
 		mcpReady = null; // allow a retry on the next run
 		throw error;
@@ -59,6 +61,7 @@ export async function* runAgent(
 	const stream = await getGraph().stream(graphInput, {
 		...threadConfig(conversationId),
 		streamMode: 'messages',
+		// DURABILITY-BOUNDARY: everything before the step in progress is on disk.
 		durability: 'sync',
 		recursionLimit: getRecursionLimit()
 	});

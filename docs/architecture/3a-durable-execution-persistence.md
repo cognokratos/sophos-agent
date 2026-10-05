@@ -1,5 +1,7 @@
 # 3a) Durable Execution & Persistence
 
+> _Learn:_ [02 — Model execution state](../runtime/02-model-execution-state.md), [03 — Design durability boundaries](../runtime/03-design-durability-boundaries.md), [06 — Failure, restart and resume](../runtime/06-failure-restart-and-resume.md), [run lifecycle walkthrough](../runtime/RUN-LIFECYCLE-WALKTHROUGH.md).
+
 The agent's state lives in **one SQLite file** and survives restarts and crashes. LangGraph's checkpointer stores the execution state; a few application tables store metadata. Markdown is an export, not a database.
 
 ```text
@@ -88,14 +90,29 @@ SSE `end` (or `chat-error`) → the UI reloads GET /api/conversations/:id
 
 ## Restart, failure and resume
 
-| Situation                          | What is persisted                                   | `runs.status`                         | What happens next                                                   |
-| ---------------------------------- | --------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------- |
-| Run finished                       | final checkpoint, `next = []`                       | `completed`                           | next message starts a new run                                       |
-| Error in a node (e.g. Ollama down) | checkpoints up to the failing step, `next = [node]` | `failed`                              | `POST {resume: true}` retries from that step, or send a new message |
-| Process crash / restart mid-run    | same as above                                       | `running` → `interrupted` at start-up | `POST {resume: true}` continues                                     |
-| Step limit reached                 | checkpoints so far                                  | `failed` (`RECURSION_LIMIT`)          | resume (with a fresh limit) or send a new message                   |
+| Situation                          | What is persisted                                   | `runs.status`                                                        | What happens next                                                   |
+| ---------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Run finished                       | final checkpoint, `next = []`                       | `completed`                                                          | next message starts a new run                                       |
+| Error in a node (e.g. Ollama down) | checkpoints up to the failing step, `next = [node]` | `failed`                                                             | `POST {resume: true}` retries from that step, or send a new message |
+| Process crash / restart mid-run    | every checkpoint completed before the crash         | `running` → `interrupted` on the new process's first database access | if `next` is non-empty, `POST {resume: true}` continues             |
+| Step limit reached                 | checkpoints so far                                  | `failed` (`RECURSION_LIMIT`)                                         | resume (with a fresh limit) or send a new message                   |
 
 A resume calls `graph.stream(null, {thread_id})`: `null` input means "continue from the last checkpoint". Completed steps are not repeated (a tool that already ran is not called again). `GET /api/conversations/:id` reports `resumable: true` when the thread has pending steps and no run is active; the UI then shows a **Resume** button.
+
+**Resumable is a property of the thread, not of `runs.status`:** a conversation is resumable exactly when its latest checkpoint has a non-empty `next` and no run is active. `interrupted` only says the process that owned the run died before recording an outcome. Two crash windows produce an `interrupted` run that has **no work of its own to resume**:
+
+- after LangGraph wrote the final checkpoint but before `finishRun()` recorded `completed`: the answer is in the thread and `next = []`;
+- after `startRun()` inserted the run row but before LangGraph wrote the input checkpoint: the new message itself was never recorded (send it again), and `next` is whatever the thread had before this run.
+
+**Graceful shutdown.** Sophos has no explicit run-drain or cancellation policy. On SIGTERM/SIGINT, adapter-node waits for open HTTP connections (including SSE streams) up to `SHUTDOWN_TIMEOUT`, then the shutdown hook closes MCP and SQLite. An in-flight run's outcome depends on timing:
+
+| Timing                                                                                               | Typical result                                                                                                                     |
+| ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| The run finishes before the hook runs (e.g. an open SSE stream held the server open)                 | `completed`                                                                                                                        |
+| The hook closes MCP / SQLite while the run is still executing                                        | the run can fail against the closed dependency and be recorded `failed` (one observed case: `The database connection is not open`) |
+| The process exits before the run's outcome is recorded (e.g. SIGKILL after a container grace period) | the row stays `running` and is recovered as `interrupted` by the next process                                                      |
+
+In every case, whether the thread can be resumed is decided by `next`, as above.
 
 These are the same states a future human-in-the-loop interrupt needs (`interrupted` → resume with a decision), so approval can be added on top of this model without changing persistence.
 
@@ -105,14 +122,14 @@ These are the same states a future human-in-the-loop interrupt needs (`interrupt
 
 ## What is durable, what is in memory
 
-| Durable (SQLite)                          | In memory only (lost on restart, by design)                          |
-| ----------------------------------------- | -------------------------------------------------------------------- |
-| conversations and their metadata          | `activeRuns`: the run currently executing per conversation           |
-| every run and its outcome                 | its buffered SSE events (for `Last-Event-ID` replay) and subscribers |
-| all messages, tool calls and tool results | the compiled graph and MCP connections (rebuilt on demand)           |
-| checkpoints of every step                 |                                                                      |
+| Durable (SQLite)                            | In memory only (lost on restart, by design)                          |
+| ------------------------------------------- | -------------------------------------------------------------------- |
+| conversations and their metadata            | `activeRuns`: the run currently executing per conversation           |
+| every run record; its outcome once recorded | its buffered SSE events (for `Last-Event-ID` replay) and subscribers |
+| all messages, tool calls and tool results   | the compiled graph and MCP connections (rebuilt on demand)           |
+| checkpoints of every step                   |                                                                      |
 
-After a restart a conversation is fully usable: its messages load from the thread, and an unfinished run shows up as `interrupted`.
+Run outcomes (`completed`, `failed`) are durable once the process records them; a run whose process died first stays `running` until the next process recovers it as `interrupted`. After a restart a conversation is fully usable: its messages load from the thread, and it is resumable if its thread has a pending step.
 
 ## Markdown and JSONL: exports only
 

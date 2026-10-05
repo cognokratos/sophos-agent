@@ -5,6 +5,8 @@ import { closeDatabase } from '$lib/agent/persistence/database';
 // accepting requests (SIGINT/SIGTERM). Close MCP connections so stdio servers
 // exit and HTTP sessions are released, then close SQLite (checkpointing WAL).
 // Not emitted by `vite dev`.
+// RESOURCE-OWNERSHIP: this closes the runs' dependencies, not the runs. A run
+// still executing can reach the closed database and fail (docs/runtime/01).
 process.on('sveltekit:shutdown', async (reason) => {
 	try {
 		await closeAgent();

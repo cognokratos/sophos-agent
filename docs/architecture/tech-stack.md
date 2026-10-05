@@ -52,7 +52,7 @@ Local-first, teaching-focused stack with transparent reasoning, one-command Dock
 
 ## CI/CD
 
-- **Not implemented yet.** There is no CI workflow in the repository; checks run locally (see [7.3](./7-developer-experience-dx.md#73-testing-qa)).
+- **Not implemented yet.** There is no CI workflow in the repository; checks run locally (see [7.3](./7-developer-experience-dx.md#73-testing--qa)).
 - **Versioning:** Conventional commits; locked dependencies to reduce drift
 
 ## Security posture

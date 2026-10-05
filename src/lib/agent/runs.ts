@@ -24,6 +24,8 @@ export interface ActiveRun {
 	subscribers: Set<Subscriber>;
 }
 
+// TRANSPORT-STATE: lost on restart by design. It also enforces "one run per
+// conversation", which therefore holds only within this process.
 const activeRuns = new Map<string, ActiveRun>();
 
 export function getActiveRun(conversationId: string): ActiveRun | undefined {
@@ -43,6 +45,8 @@ export function startRun(conversationId: string, input: RunInput): ActiveRun {
 	};
 	recordRunStart(getDatabase(), conversationId, run.runId);
 	activeRuns.set(conversationId, run);
+	// RESOURCE-OWNERSHIP: nobody awaits this promise. It outlives the request,
+	// and server shutdown neither drains nor cancels it.
 	void execute(run, input);
 	return run;
 }

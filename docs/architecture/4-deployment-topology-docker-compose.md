@@ -1,5 +1,7 @@
 # 4) Deployment Topology (Docker Compose)
 
+> _Learn:_ [08 — Local-first and runtime ownership](../runtime/08-local-first-and-runtime-ownership.md) (what the topology enforces, and what it doesn't).
+
 Defined in `infra/compose.yml`; started with `make start` (or `make inspector`).
 
 ## Services

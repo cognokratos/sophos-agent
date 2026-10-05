@@ -28,7 +28,7 @@ The Fetch MCP server makes **outbound HTTP requests to URLs chosen by the model*
 - **SSRF:** the server does **not** block private or loopback addresses. Under Docker it can reach `mcp-memory:8080` and the host via `host.docker.internal` (including Ollama); under `pnpm dev` it can reach anything on your machine and LAN.
 - It honours `robots.txt` for autonomous fetches; that is a courtesy, not a security control.
 
-Remove `fetch` from `mcp.json` to run with no tool-initiated network access.
+Remove `fetch` from `mcp.json` to run with no tool-initiated network access. Note that this is a configuration control: the Compose network is not `internal`, so containers can still open outbound connections. _Learn:_ [08 — Local-first and runtime ownership](../runtime/08-local-first-and-runtime-ownership.md).
 
 ## Supply chain
 

@@ -2,12 +2,13 @@ COMPOSE_FILE="infra/compose.yml"
 ENV_FILE="infra/.env"
 COMPOSE=docker compose -f ${COMPOSE_FILE} --env-file ${ENV_FILE}
 
-.PHONY: help test dev start stop inspector format clean-db clean-memory clean
+.PHONY: help test docs-check dev start stop inspector format clean-db clean-memory clean
 
 help:
 	@echo "Available targets:"
 	@echo "  help: Show this help message."
 	@echo "  test: Run all tests."
+	@echo "  docs-check: Check documentation links, anchors, paths and commands (offline)."
 	@echo "  dev: Start the development server."
 	@echo "  start: Start the app inside a cluster (http://127.0.0.1:5173)."
 	@echo "  stop: Stop the app cluster."
@@ -17,8 +18,13 @@ help:
 	@echo "  clean-db: Delete the SQLite database (conversations, runs, checkpoints)."
 	@echo "  clean-memory: Clean the memory directory."
 
-test:
+test: docs-check
 	pnpm test && ./scripts/test.sh
+
+# Offline: needs only Node and git (no Docker, Ollama or MCP servers).
+docs-check:
+	node --test scripts/verify-docs.test.mjs
+	node scripts/verify-docs.mjs
 
 dev:
 	pnpm run dev -- --open

@@ -37,9 +37,12 @@ Transparent reasoning and tool use are explicit PRD goals.
 ## 6.2 Failure Paths (sketches)
 
 - **Tool error reported by the server** (`isError`): the adapter returns a `ToolMessage` with `status: "error"`; the model sees it and can recover. No automatic retry.
-- **MCP connection failure:** the agent node fails, the run is recorded as `failed` (`AGENT_FAILURE`), its checkpoint stays resumable, and the next run retries the connection.
+- **MCP connection failure:** the agent node fails, the run is recorded as `failed` (`AGENT_FAILURE`), and the thread keeps its pending `agent` step, so it is resumable. If the failure happened during the first discovery, the next run retries the connection; a connection lost after a successful discovery is not re-established until the process restarts.
+- **Graceful shutdown mid-run:** there is no drain or cancellation policy; depending on timing the run completes, fails against the closed MCP connections or database, or is left `running` and later recovered as `interrupted` (see [3a](./3a-durable-execution-persistence.md#restart-failure-and-resume)).
 - **Model unavailable:** Ollama's `model '<name>' not found` becomes `MODEL_UNAVAILABLE`. `/api/readyz` reports a missing model ahead of time.
 - **Endless tool loop:** `recursionLimit` stops the run with `RECURSION_LIMIT`.
-- **Crash or restart mid-run:** the run is marked `interrupted` at start-up and can be resumed from its last checkpoint (see [3a](./3a-durable-execution-persistence.md#restart-failure-and-resume)).
+- **Crash or restart mid-run:** the run is marked `interrupted` on the new process's first database access; it can be resumed from its last completed checkpoint if the thread has a pending step (see [3a](./3a-durable-execution-persistence.md#restart-failure-and-resume)).
+
+_Learn:_ [06 — Failure, restart and resume](../runtime/06-failure-restart-and-resume.md) has a lab for each of these paths.
 
 ---
