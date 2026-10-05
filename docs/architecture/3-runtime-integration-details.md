@@ -65,7 +65,7 @@ export type AgentEvent =
 
 ## 3.4 Streaming Protocol
 
-**SSE** for simplicity. `POST /api/chat` starts the run and returns the conversation ID; the UI then opens an `EventSource` on `GET /api/chat`. Every event carries an incrementing `id`, and the server buffers the active run's events in memory, so a late or reconnecting browser (`Last-Event-ID`) receives only what it missed. The buffer is transport state only: when the run ends the UI reloads the conversation from durable storage, and after a restart the run shows up as `interrupted`. There is no non-streaming JSON fallback.
+**SSE** for simplicity. `POST /api/chat` starts the run and returns the conversation ID; the UI then opens an `EventSource` on `GET /api/chat`. Every event carries an incrementing `id`, and the server buffers the active run's events in memory, so a late or reconnecting browser (`Last-Event-ID`) receives only what it missed. The buffer is transport state only: when the run ends the UI reloads the conversation from durable storage, and after a restart the run shows up as `interrupted`. There is no non-streaming JSON fallback. _Learn:_ [04 — Streaming is not persistence](../runtime/04-streaming-is-not-persistence.md).
 
 ## 3.5 Unified Error Envelope
 
@@ -111,7 +111,7 @@ Two configurations ship with the repository:
 
 **Tool names are prefixed with the server name**, e.g. `memory__create_entities` and `fetch__fetch`. Two servers can therefore expose a tool with the same name without colliding; with prefixing disabled the adapter would throw on duplicates.
 
-**Lifecycle.** Tools are resolved when a node runs, not when the graph is built, so reading a conversation never connects to MCP. The first run connects (`loadTools()` shares one connection attempt between concurrent runs); if discovery fails, the adapter is closed and the next run retries. On shutdown, adapter-node emits `sveltekit:shutdown`; `src/hooks.server.ts` calls `closeAgent()`, which closes all MCP connections and stops stdio child processes. `vite dev` does not emit this event.
+**Lifecycle.** Tools are resolved when a node runs, not when the graph is built, so reading a conversation never connects to MCP. The first run connects (`loadTools()` shares one connection attempt between concurrent runs); if discovery fails, the adapter is closed and the next run retries, re-reading `mcp.json`. A connection lost **after** a successful discovery (e.g. a stdio server that exits) is not re-established: every later run fails with `AGENT_FAILURE` until the process restarts. On shutdown, adapter-node emits `sveltekit:shutdown` once the HTTP server has closed (open SSE connections hold it open for up to `SHUTDOWN_TIMEOUT`); `src/hooks.server.ts` calls `closeAgent()`, which closes all MCP connections and stops stdio child processes, then closes SQLite. In-flight runs are not drained or cancelled: a run still executing reaches a closed database and is recorded `failed`, with its thread resumable. `vite dev` does not emit this event. _Learn:_ [01 — Own the process](../runtime/01-own-the-process.md).
 
 **Not used yet.** The adapter's per-server protocol negotiation is left at the default (`mode: "auto"`). MCP elicitation (servers asking the user for input) is delivered as a LangGraph interrupt; the checkpointer it needs now exists, but resuming interrupts with a user decision is not implemented yet, and neither reference server uses elicitation.
 

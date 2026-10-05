@@ -80,6 +80,8 @@ let database: DB | null = null;
 export function getDatabase(): DB {
 	if (!database) {
 		database = openDatabase(env.DATABASE_PATH || 'data/db/sophos.db');
+		// RUNTIME-BOUNDARY: on this process's first database access, not at start-up.
+		// Valid only while a single process owns the database.
 		recoverInterruptedRuns(database);
 	}
 	return database;

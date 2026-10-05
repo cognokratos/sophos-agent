@@ -36,7 +36,8 @@ make stop
 - **Integration:** Playwright against `pnpm preview` with real Ollama + MCP servers. `pnpm test:e2e`.
 - **Compose smoke:** `scripts/test.sh` — builds the stack, waits for all healthchecks, asserts the MCP services publish no host ports, then waits for `/api/readyz`.
 - **Static:** `pnpm check` (svelte-check, TS strict), `pnpm lint` (Prettier + ESLint).
+- **Docs:** `make docs-check` — relative links, heading anchors, referenced repository paths, `make` targets and `pnpm` scripts in all Markdown files (`scripts/verify-docs.mjs`, with negative tests in `scripts/verify-docs.test.mjs`). Offline; needs only Node and git.
 
-There is no CI pipeline in the repository yet; run these locally (`make test` runs unit, e2e and smoke).
+There is no CI pipeline in the repository yet; run these locally (`make test` runs the docs check, unit, e2e and smoke).
 
 ---

@@ -52,15 +52,18 @@ sophos-agent/
 ├── e2e/                              # Playwright tests
 ├── examples/                         # Memory / Fetch walkthroughs
 ├── scripts/
-│   └── test.sh                       # Compose smoke test
+│   ├── test.sh                       # Compose smoke test
+│   └── verify-docs.mjs               # make docs-check (+ verify-docs.test.mjs)
 │
 ├── docs/
+│   ├── RUNTIME-LEARNING-PATH.md      # educational entry point (runtime engineering)
+│   ├── runtime                       # lessons, walkthrough, case studies, challenges
 │   ├── stories                       # User Stories
 │   ├── prd                           # Product Requirements & Epics
 │   └── architecture                  # Architecture & Design (this folder)
 │
 ├── .env.example                      # pnpm dev settings (copy to .env)
-├── Makefile                          # make dev/start/inspector/stop/clean/test
+├── Makefile                          # make dev/start/inspector/stop/clean/test/docs-check
 ├── package.json                      # scripts, deps, packageManager (pnpm)
 └── pnpm-workspace.yaml               # pnpm build-script allow-list
 ```

@@ -1,5 +1,7 @@
 # 5) Trade-off Decisions
 
+> _Learn:_ [case studies](../runtime/CASE-STUDIES.md) (why Markdown stopped being the database, why a `runs` table, why the monolith).
+
 | Topic          | Decision                                  | Rationale                                                                                                        |
 | -------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | Service shape  | **Monolith (web+agent)** for v0           | Simplest workshops; the agent is a library inside the SvelteKit server.                                          |
