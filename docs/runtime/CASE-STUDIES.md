@@ -38,7 +38,7 @@ LangGraph's `SqliteSaver` gives every conversation a thread with a checkpoint af
 
 So the `runs` table (`src/lib/agent/persistence/database.ts`) gives each attempt an identity and an outcome, and the application maintains it at the edges of the graph: `startRun()` before the graph runs, `finishRun()` after it stops, `recoverInterruptedRuns()` when a new process first opens the database. [Lesson 02](02-model-execution-state.md) shows four runs on one thread, one of which produced no new checkpoint at all.
 
-**The cost.** Two sources of truth that must agree. They usually do because the run row brackets the graph, but not always: a graceful shutdown mid-run records `failed` for a run whose thread is perfectly resumable ([lesson 01, part 4](01-own-the-process.md#part-4-shut-down-while-a-run-is-in-flight)). The rule Sophos follows: `next` decides whether there is work left; `runs` records what the user was told.
+**The cost.** Two sources of truth that must agree. They usually do because the run row brackets the graph, but not always: in one observed graceful shutdown, a run was recorded `failed` while its thread was perfectly resumable ([lesson 01, part 4](01-own-the-process.md#part-4-shut-down-while-a-run-is-in-flight)). The rule Sophos follows: `next` decides whether there is work left; `runs` records what the user was told.
 
 **Lesson:** use the framework's state for what the framework does (execute and resume steps), and model your product's concepts yourself.
 

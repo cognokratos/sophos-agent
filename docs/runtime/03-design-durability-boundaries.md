@@ -114,7 +114,7 @@ sqlite3 $DB "SELECT status FROM runs WHERE conversation_id = '$C'"
 
 **Predict:** is the run `running`, `interrupted` or `failed` right now? What happens to it when the server starts?
 
-**Observed:** `running`, with the `-wal` file still on disk. Start the lab server, call `curl -s $B/api/conversations > /dev/null`, and query again: `interrupted`. SQLite replays its WAL on open; Sophos replays nothing: `recoverInterruptedRuns()` simply relabels runs that can no longer be running. The essay tokens the stream had shown are gone, and the thread is resumable from its last checkpoint ([lesson 06](06-failure-restart-and-resume.md)).
+**Observed:** `running`, with the `-wal` file still on disk. Start the lab server, call `curl -s $B/api/conversations > /dev/null`, and query again: `interrupted`. SQLite replays its WAL on open; Sophos replays nothing: `recoverInterruptedRuns()` simply relabels runs that can no longer be running. The essay tokens the stream had shown are gone. Here the thread was resumable (`next: ["agent"]`), because the kill landed mid-step; `interrupted` alone doesn't promise that ([lesson 06](06-failure-restart-and-resume.md#what-this-does-not-guarantee)).
 
 ## Why the system behaves this way
 

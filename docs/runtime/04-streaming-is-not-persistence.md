@@ -129,7 +129,7 @@ The trade-off: a user who reloads mid-run sees the conversation up to the last c
 
 - **SSE fits a one-way, per-run stream** and gets reconnection with `Last-Event-ID` from the browser for free ([5) Trade-off Decisions](../architecture/5-trade-off-decisions.md)).
 - **The buffer is complete for the run's lifetime**, so a late subscriber (the UI opens its `EventSource` after `POST` returns) or a reconnecting one never misses events.
-- **"Persist first, then notify"** (`execute()` in `src/lib/agent/runs.ts`): `finishRun()` runs before `end` is published, so a client that reloads on `end` always sees the final state.
+- **"Persist first, then notify"** (`execute()` in `src/lib/agent/runs.ts`): `finishRun()` runs before `end` is published, so a client that reloads on `end` sees the final thread and the recorded outcome. (If recording the outcome throws, the error is logged and `end` is still published; the thread is final either way.)
 
 ## What this does NOT guarantee
 

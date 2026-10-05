@@ -191,7 +191,7 @@ That same transaction set `conversations.updated_at`, which moves the chat to th
 
 ### 17. SSE `end`
 
-Only **after** the outcome is committed, `execute()` publishes `end` (`{conversation, status: "completed"}`) and deletes the `ActiveRun`. The route closes the stream on `end`. The buffer of ~2,700 events is now unreachable.
+Only **after** the outcome is recorded (or recording it failed and was logged), `execute()` publishes `end` (`{conversation, status: "completed"}`) and deletes the `ActiveRun`. The route closes the stream on `end`. The buffer of ~2,700 events is now unreachable.
 
 | Stage                       | Stored where? | Durable? | Owner             | Replayable? |
 | --------------------------- | ------------- | :------: | ----------------- | :---------: |
@@ -253,9 +253,9 @@ agent step 3 (again, from scratch) → next = [] → new run "completed"
 | resume run row                    | `runs`              |   yes    | application       |          a **new** row, a new run id           |
 | `fetch__fetch`                    | —                   |    —     | MCP service       | **not** called again: its result is in step 2  |
 
-If the kill had landed **during** step 2 (after the Fetch server sent its request, before the checkpoint), the resume would have run the `tools` step again and fetched the page a second time. For a GET, harmless. For a write, that is [lesson 07](07-side-effects-and-idempotency.md).
+If the kill had landed **during** step 2 (after the Fetch server sent its request, before the checkpoint), a resume would have run the `tools` step again and fetched the page a second time. For a GET, harmless. For a write, that is [lesson 07](07-side-effects-and-idempotency.md).
 
-If the process had been stopped **gracefully** instead, with no browser attached, the run would have ended `failed` with `The database connection is not open`, and the thread would be in the same resumable state ([lesson 01, part 4](01-own-the-process.md#part-4-shut-down-while-a-run-is-in-flight)).
+If the process had been stopped **gracefully** instead, the outcome would depend on timing, because Sophos has no run-drain policy. In the observed case with no browser attached, the run ended `failed` with `The database connection is not open` and the thread was in the same resumable state ([lesson 01, part 4](01-own-the-process.md#part-4-shut-down-while-a-run-is-in-flight)).
 
 ## What to take away
 
@@ -263,6 +263,7 @@ If the process had been stopped **gracefully** instead, with no browser attached
 - Four stores take part, with four owners: SQLite app tables (Sophos), checkpoints (LangGraph), `memory.jsonl` (the Memory MCP server) and the SSE buffer (Sophos, RAM only).
 - Exactly one of them is the conversation: the latest checkpoint.
 - A resume repeats at most the interrupted step. Everything before it is read, not redone.
+- Whether there is anything to resume is decided by the thread's `next`, not by `runs.status`: a crash after the final checkpoint but before `completed` is recorded leaves an `interrupted` run with a finished thread.
 
 ## Go deeper
 

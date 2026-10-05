@@ -39,5 +39,5 @@ Predict before you inspect. The point of each lab is the gap between what you ex
 ## Ground rules
 
 - **Disposable state only.** Labs use `data/lab/` ([lab environment](../RUNTIME-LEARNING-PATH.md#lab-environment)). Nothing in this curriculum asks you to delete `data/db/` or `data/memory/`.
-- **Current code only.** Everything described as behaviour is implemented on `main` and was observed while writing the labs. Anything that is not implemented is labelled _challenge_ or _future design_.
+- **Current code only.** Everything described as behaviour is implemented on `main`. Lab results were observed while writing the labs; a few edge cases are read from the code, and the lessons say so. Anything that is not implemented is labelled _challenge_ or _future design_.
 - **Model output is observed, not guaranteed.** Tool choice and wording vary between models and runs. Runtime behaviour does not.

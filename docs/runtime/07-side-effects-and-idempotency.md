@@ -37,7 +37,7 @@ sequenceDiagram
     G->>DB: checkpoint: tool result = task #18
 ```
 
-Can the mutation happen twice? **Yes.** The checkpoint is the only thing that tells LangGraph the `tools` step finished, and the external commit happened before it. Nothing in the workflow can tell "the call never reached the server" from "the server committed and the reply was lost".
+Can the mutation happen twice? **Yes, if the pending step is resumed.** The checkpoint is the only thing that tells LangGraph the `tools` step finished, and the external commit happened before it. Nothing in the workflow can tell "the call never reached the server" from "the server committed and the reply was lost".
 
 The window is not only a crash. The same uncertainty appears when:
 
@@ -48,16 +48,17 @@ The window is not only a crash. The same uncertainty appears when:
 
 ### Vocabulary
 
-| Term                          | Meaning here                                                                                                                                                           |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **At-least-once**             | What Sophos gives a tool call today: a call that started may be issued again on resume.                                                                                |
-| **At-most-once**              | Never retry. You get this by not resuming, and you lose the work.                                                                                                      |
-| **Exactly-once**              | Not achievable across a network boundary by the caller alone. What systems actually provide is _effectively-once_: at-least-once delivery plus an idempotent receiver. |
-| **Idempotent operation**      | Applying it twice has the same effect as once (`set status = done`, `delete id 17`).                                                                                   |
-| **Idempotency key**           | A caller-chosen identifier for one _logical_ request. The receiver stores `key → result` atomically with the effect and returns the stored result on a repeat.         |
-| **Natural-key deduplication** | The receiver refuses a duplicate because the data identifies itself (unique name, unique constraint). Safe for creation, but the second response differs.              |
-| **Replay-safe**               | Running the same call again after an unknown outcome is correct.                                                                                                       |
-| **Compensation**              | A later operation that semantically undoes an effect you can't prevent (cancel the duplicate order). Needed when the receiver can't be made idempotent.                |
+| Term                                 | Meaning here                                                                                                                                                                                                                                            |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Duplicate-delivery (replay) risk** | What Sophos has today: a tool call whose outcome is unknown may be issued again when the pending `tools` step is explicitly resumed. Nothing re-issues it on its own.                                                                                   |
+| **At-least-once delivery**           | A stronger policy: the sender keeps retrying until the receiver has processed the request at least once. Sophos does **not** implement this: resume is explicit, the user may never resume, and the process may die before the call reaches the server. |
+| **At-most-once delivery**            | Never re-issue a call whose outcome is unknown. Sophos behaves this way only if nobody resumes the pending step, at the cost of the work.                                                                                                               |
+| **Exactly-once**                     | Not achievable across a network boundary by the caller alone. What systems actually provide is _effectively-once_ effects: retries (at-least-once delivery) plus an idempotent receiver.                                                                |
+| **Idempotent operation**             | Applying it twice has the same effect as once (`set status = done`, `delete id 17`).                                                                                                                                                                    |
+| **Idempotency key**                  | A caller-chosen identifier for one _logical_ request. The receiver stores `key → result` atomically with the effect and returns the stored result on a repeat.                                                                                          |
+| **Natural-key deduplication**        | The receiver refuses a duplicate because the data identifies itself (unique name, unique constraint). Safe for creation, but the second response differs.                                                                                               |
+| **Replay-safe**                      | Running the same call again after an unknown outcome is correct.                                                                                                                                                                                        |
+| **Compensation**                     | A later operation that semantically undoes an effect you can't prevent (cancel the duplicate order). Needed when the receiver can't be made idempotent.                                                                                                 |
 
 ## Where it lives in Sophos
 

@@ -77,7 +77,18 @@ Each of these is demonstrated with code and an experiment somewhere in the path,
 
 Every lesson has a lab. The labs run Sophos as a production build against **disposable state** under `data/lab/`, so they never touch the conversations and memory you keep under `data/db/` and `data/memory/`.
 
-**Prerequisites:** Node 24, [Ollama](https://ollama.com) with the configured model (`ollama pull qwen3`), `npx` and [`uv`](https://docs.astral.sh/uv/) for the stdio MCP servers, plus `curl`, `jq` and `sqlite3`. Lesson 08 also uses Docker.
+**Prerequisites:** Node 24, [Ollama](https://ollama.com) with the configured model (`ollama pull qwen3`), `npx` and [`uv`](https://docs.astral.sh/uv/) for the stdio MCP servers, and these command-line tools:
+
+| Tool              | Used for                                                               | Notes                                                                                                                               |
+| ----------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `curl`            | every lab: the HTTP API and SSE streams                                |                                                                                                                                     |
+| `jq`              | reading API responses and exports                                      |                                                                                                                                     |
+| `sqlite3`         | reading the `runs`, `conversations`, `checkpoints` and `writes` tables | the SQLite command-line shell; often a separate package (`sqlite3` on Debian/Ubuntu)                                                |
+| `lsof`            | finding the lab server's PID and its sockets (lessons 03, 04, 06, 08)  | not installed by default on many Linux distributions. To kill the lab server without it: `pkill -9 -f 'node --env-file=.env build'` |
+| `pgrep` / `pkill` | finding and killing MCP child processes (lesson 01)                    | on Linux, `pgrep -fl` prints only process names; use `pgrep -af` to see full command lines                                          |
+| `docker`          | reading the Compose configuration (lesson 08)                          | Docker Compose v2 (`docker compose`)                                                                                                |
+
+The commands were written and run in `zsh` on macOS; they are plain POSIX shell otherwise.
 
 Once:
 

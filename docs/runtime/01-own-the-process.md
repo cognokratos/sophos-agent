@@ -172,7 +172,7 @@ sqlite3 $DB "SELECT status, error_code, error_message FROM runs WHERE conversati
 curl -s $B/api/conversations/$C | jq .resumable
 ```
 
-The thread is still resumable: the last checkpoint written before shutdown is intact. Durability held; the _recorded outcome_ is misleading.
+In this experiment the thread was still resumable: the last checkpoint written before shutdown was intact and `next` was `["agent"]`. Durability held; the _recorded outcome_ is misleading.
 
 Now repeat with a stream attached (`curl -N "$B/api/chat?conversation=$C"` in a third terminal) before Ctrl+C. **Observed:** the open SSE connection kept `server.close()` waiting; the run finished, the stream received `end`, and only then did the hook run. That is not a drain policy. It is an accident of an open connection, and it ends at `SHUTDOWN_TIMEOUT`.
 
@@ -195,7 +195,7 @@ Start two new runs, any prompt. **Observed:** both fail with `Failed to load too
 
 ## What this does NOT guarantee
 
-- **No drain, cancel or mark on shutdown.** An in-flight run either keeps the process alive until it reaches a closed dependency (recorded `failed`), or dies with the process (left `running`, later `interrupted`). Which one depends on timing and on whether a browser is connected.
+- **No drain, cancel or mark on shutdown.** Sophos has no run-drain or cancellation policy. Depending on timing and on whether a browser is connected, an in-flight run can finish before the hook runs (`completed`), fail against a closed dependency (`failed`, as in Part 4), or die with the process before its outcome is recorded (left `running`, later `interrupted`). Part 4 observed the first two (with and without a stream attached); none of them is guaranteed.
 - **No reconnection after discovery.** A tool server that dies after the first successful discovery makes every subsequent run fail until restart. (Part 5 used stdio. What a Streamable HTTP client does after a `mcp-fetch` container restart is a good thing to test yourself under `make start`.)
 - **No dependency health in `readyz`.** It checks Ollama and the model only.
 - **No supervision.** Neither Sophos nor `infra/compose.yml` restarts a dead MCP server.

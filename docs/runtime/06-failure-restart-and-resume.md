@@ -31,7 +31,7 @@ stateDiagram-v2
     end note
 ```
 
-Each `runs` row is final once it leaves `running`. "Resuming a failed run" means starting a **new** run with `{resume: true}`, which continues the **thread**.
+In the normal path each `runs` row is written twice: `running`, then one final status. (One edge case, read from the code path of [lesson 01, part 4](01-own-the-process.md#part-4-shut-down-while-a-run-is-in-flight): after shutdown closes the database, recording the outcome reopens it, `recoverInterruptedRuns()` briefly relabels the still-executing run `interrupted`, and `finishRun()` then overwrites it with `failed`.) "Resuming a failed run" means starting a **new** run with `{resume: true}`, which continues the **thread**.
 
 ### What a checkpoint boundary means
 
@@ -153,7 +153,7 @@ curl -sN "$B/api/chat?conversation=$C" | grep -o '"step":[0-9]*,"name":"[^"]*","
 
 ### Scenario D: Graceful shutdown mid-run
 
-This is [lesson 01, part 4](01-own-the-process.md#part-4-shut-down-while-a-run-is-in-flight) again, seen from the thread's side. After Ctrl+C with no stream attached, the run was recorded `failed` with `The database connection is not open`. Predict `next` and check it with `state` after restart: `["agent"]`, resumable, and the resume completes. **The checkpoint model survived a shutdown that the application's run bookkeeping got wrong.**
+This is [lesson 01, part 4](01-own-the-process.md#part-4-shut-down-while-a-run-is-in-flight) again, seen from the thread's side. In that experiment (Ctrl+C, no stream attached), the run was recorded `failed` with `The database connection is not open`. Predict `next` and check it with `state` after restart. Observed: `["agent"]`, resumable, and the resume completed. **The checkpoint model survived a shutdown that the application's run bookkeeping got wrong.** This is one timing-dependent outcome, not a guarantee: with a stream attached the run finished first, and a process killed before the outcome is recorded leaves the run `running`, later `interrupted` ([3a](../architecture/3a-durable-execution-persistence.md#restart-failure-and-resume)).
 
 ## Why the system behaves this way
 
@@ -164,8 +164,9 @@ This is [lesson 01, part 4](01-own-the-process.md#part-4-shut-down-while-a-run-i
 
 ## What this does NOT guarantee
 
-- **No exactly-once step execution.** The interrupted step runs again from scratch. A model step yields a new sample; a tools step repeats every tool call of that turn ([lesson 07](07-side-effects-and-idempotency.md)).
+- **No exactly-once step execution.** If resumed, the interrupted step runs again from scratch. A model step yields a new sample; a tools step repeats every tool call of that turn ([lesson 07](07-side-effects-and-idempotency.md)).
 - **No automatic retry**, backoff or resume.
+- **`interrupted` does not mean resumable.** It means the owning process died before recording an outcome. Both windows below are narrow and were reasoned from the code, not reproduced. A crash after the final checkpoint but before `finishRun()` leaves an `interrupted` run whose thread is complete (`next = []`); a crash after `startRun()` but before the input checkpoint leaves one whose new message was never recorded (the thread is as it was before the run). Only `next` (surfaced as `resumable`) says whether there is work to continue.
 - **No accurate cause for every failure.** Shutdown-induced failures are recorded as `AGENT_FAILURE`; `interrupted` covers crash, `kill -9`, power loss and SIGKILL after a grace period alike.
 - **No multi-process safety.** A second process opening the same database would relabel the first process's live runs as `interrupted`.
 - **A new message instead of a resume** starts a new run from the new input. What happens to the abandoned pending step (for example, an assistant tool call with no tool result yet) is worth predicting, then testing yourself.

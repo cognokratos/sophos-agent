@@ -1,6 +1,6 @@
 # **Σοφός Agent**: Own the Runtime
 
-**A hands-on reference for durable agent runtime engineering, built on a small, fully local agent (Educational Project)**
+**A hands-on reference for durable agent runtime engineering, built on a small, local-first agent (Educational Project)**
 
 ![](docs/bg.png)
 
@@ -8,7 +8,7 @@
 
 ## 📌 Overview
 
-Sophos is a local-first agentic chat system: a SvelteKit app with an explicit single-agent LangGraph graph, a local model in Ollama, tools over MCP (Memory and Fetch), and durable state in SQLite. Inference and state stay local by default; network access happens through configured tools.
+Sophos is a local-first agentic chat system: a SvelteKit app with an explicit single-agent LangGraph graph, a local model in Ollama, tools over MCP (Memory and Fetch), and durable state in SQLite. Inference and state stay local by default; the model reaches the network only through configured tools.
 
 **Sophos is not the generic Agentic AI introduction.** For production agent fundamentals (agent loops, tool calling, MCP, grounding, guardrails, evaluation, observability, identity and human approval) start with [`simple-agent-template`](https://github.com/cognokratos/simple-agent-template).
 
@@ -57,7 +57,7 @@ This project is intended for experienced software engineers who already know wha
 
 ### Local-First
 
-Inference, conversation state and long-term memory run **on your machine** by default. The only tool-initiated network access is explicit: the Fetch MCP server, enabled in `mcp.json`, retrieves URLs the model asks for. Remove it and the agent has no tool-initiated network access. [Lesson 08](docs/runtime/08-local-first-and-runtime-ownership.md) examines what that does and doesn't guarantee.
+Inference, conversation state and long-term memory run **on your machine** by default. The only model-directed network access is explicit: the Fetch MCP server, enabled in `mcp.json`, retrieves URLs the model asks for. Remove it and the agent has no tool-initiated network access. [Lesson 08](docs/runtime/08-local-first-and-runtime-ownership.md) examines what that does and doesn't guarantee.
 
 ### Minimalist
 
@@ -72,7 +72,7 @@ Every abstraction is justified. If something exists, it exists because:
 This is not a stateless chatbot. The system is built around:
 
 - An explicit, inspectable `StateGraph` (`agent` ⇄ `tools`)
-- Checkpoints after every step, so runs survive crashes and can be resumed
+- Checkpoints after every step, so completed steps survive crashes and unfinished work can be resumed
 - Runs with an identity and an outcome (`running`, `interrupted`, `completed`, `failed`)
 - Long-term memory kept separate from conversation history
 
@@ -132,7 +132,7 @@ There is no tool policy, guardrail or approval layer yet: every discovered tool 
 6. **Stream:** tokens and trace events reach the browser over SSE as they happen
 7. **Finish:** the run is recorded `completed` or `failed`; the UI reloads the conversation from durable state
 
-A crash at any point leaves the run `interrupted` and resumable from its last checkpoint. The [walkthrough](docs/runtime/RUN-LIFECYCLE-WALKTHROUGH.md) follows a real run through all of this.
+A crash preserves every completed checkpoint. On the next database access, a stale `running` run is marked `interrupted`; if the thread still has a pending node, it can be resumed from the last completed checkpoint. (A crash after the final checkpoint but before the run is recorded `completed` leaves an `interrupted` run with nothing to resume.) The [walkthrough](docs/runtime/RUN-LIFECYCLE-WALKTHROUGH.md) follows a real run through all of this.
 
 ---
 
@@ -142,8 +142,8 @@ The security posture is documented in detail under `docs/architecture/9-security
 
 Key principles include:
 
-- No implicit network access (tool egress is explicit and configurable)
-- Nothing published beyond `127.0.0.1` by default
+- No implicit model-directed egress: the model reaches the network only through configured tools, and the default Fetch MCP is the intended internet capability. Other network dependencies (the Ollama host, package bootstrap by `npx`/`uvx`) are documented in [lesson 08](docs/runtime/08-local-first-and-runtime-ownership.md)
+- Nothing published beyond `127.0.0.1` in the documented run modes (Docker Compose, `pnpm dev`)
 - Explicit trust boundaries
 - State stays on the machine (unencrypted, git-ignored under `data/`)
 - No authentication: a single-user, loopback-only default, not a multi-user deployment
