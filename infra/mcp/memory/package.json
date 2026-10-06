@@ -1,6 +1,7 @@
 {
 	"name": "sophos-mcp-memory",
 	"private": true,
+	"license": "MIT",
 	"description": "Runtime dependencies of the Memory MCP container (stdio server behind an HTTP proxy).",
 	"dependencies": {
 		"@modelcontextprotocol/server-memory": "2026.8.31",

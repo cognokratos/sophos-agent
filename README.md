@@ -200,6 +200,8 @@ This repository emphasizes **long-term ownership artifacts**:
 
 You should be able to understand and operate this system **years from now**, without vendor lock-in.
 
+**License.** The original code and documentation in this repository are released under the [MIT License](LICENSE) (Copyright (c) 2026 Victor Nitu). The Σοφός logo, banner and favicon images (`src/lib/assets/`, `static/favicon/`, `docs/bg.png`) are project brand assets and are not covered by the MIT grant. Dependencies, including the Memory and Fetch MCP servers, are used under their own licences. `package.json` stays `"private": true`: that controls npm publication, not the licence.
+
 ---
 
 ## 🚀 Getting Started
