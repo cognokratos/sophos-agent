@@ -7,17 +7,11 @@
 
 ## 2.2 Context Diagram
 
-```mermaid
-flowchart LR
-  U[Student / Educator] -->|"http://127.0.0.1:5173"| FE["SvelteKit UI<br/>/api/chat (SSE)"]
-  FE --> LG[LangGraph.js Engine]
-  LG --> OL["Ollama (Qwen3)<br/>on the host"]
-  LG -->|MCPAdapter| MEM[Memory MCP]
-  LG -->|MCPAdapter| FET[Fetch MCP]
-  FET -->|outbound HTTP| NET((Internet))
-  LG -->|SqliteSaver| DB[(SQLite<br/>conversations, runs,<br/>checkpoints)]
-  MEM --> KG[memory.jsonl]
-```
+![Sophos Agent architecture](../assets/sophos-agent-architecture.svg)
+
+Sophos is deliberately organized around a **restart boundary**. The web process contains the SvelteKit API, LangGraph runtime, MCP adapter and the active-run/SSE registry. Those runtime objects are rebuilt after a restart. Durable execution state lives below that boundary: conversations, run metadata and LangGraph checkpoints share `data/db/sophos.db`, while long-term Memory MCP knowledge lives separately in `data/memory/memory.jsonl`.
+
+The distinction is intentional: **SSE replay is transport recovery, not persistence**. The in-memory event buffer helps a browser reconnect to a live run; checkpoints decide whether unfinished graph work can survive a process failure and resume later.
 
 The UI and the agent run in one Node process (the `web` service). The agent talks to Ollama over HTTP and to MCP servers through a single `MCPAdapter`. In Docker Compose the MCP servers are reachable only on the internal Compose network; only the web app is published, and only on `127.0.0.1`. The SQLite database and the knowledge graph are bind-mounted into the repository's `data/` directory.
 

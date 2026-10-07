@@ -1,0 +1,125 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#081019"/><stop offset="55%" stop-color="#0D1117"/><stop offset="100%" stop-color="#0A0E14"/></linearGradient>
+<linearGradient id="rt" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#15172C"/><stop offset="100%" stop-color="#111827"/></linearGradient>
+<linearGradient id="dur" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0E2419"/><stop offset="100%" stop-color="#0B1A13"/></linearGradient>
+<linearGradient id="eg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#34240F"/><stop offset="100%" stop-color="#261A0A"/></linearGradient>
+<filter id="sh" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000" flood-opacity=".35"/></filter>
+<marker id="a" viewBox="0 0 10 10" refX="8.7" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#8B949E"/></marker>
+<marker id="g" viewBox="0 0 10 10" refX="8.7" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#3FB950"/></marker>
+<marker id="o" viewBox="0 0 10 10" refX="8.7" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#D29922"/></marker>
+<style>
+text{font-family:Inter,Arial,sans-serif}.node{filter:url(#sh)}.t{fill:#E6EDF3}.m{fill:#8B949E}.p{fill:#D2A8FF}.b{fill:#79C0FF}.gr{fill:#7EE787}.go{fill:#F2CC60}
+</style>
+</defs>
+<rect width="1920" height="1080" fill="url(#bg)"/>
+
+<text x="72" y="68" font-size="42" font-weight="800" class="t">Σοφός Agent</text>
+<text x="72" y="108" font-size="20" class="m">Own the Runtime · durable local-first agent architecture</text>
+<rect x="1532" y="46" width="310" height="36" rx="18" fill="#18152E" stroke="#8957E5"/>
+<text x="1687" y="70" font-size="15" font-weight="700" text-anchor="middle" class="p">DURABILITY IS THE ARCHITECTURE</text>
+
+<rect x="55" y="150" width="1190" height="610" rx="30" fill="url(#rt)" stroke="#3E3B68" stroke-width="2"/>
+<text x="85" y="190" font-size="16" font-weight="800" class="p">WEB PROCESS · EPHEMERAL RUNTIME</text>
+<text x="85" y="217" font-size="15" fill="#A7A4C2">Rebuilt on restart · execution continues from durable checkpoints</text>
+
+<g class="node"><rect x="95" y="285" width="220" height="120" rx="22" fill="#111A25" stroke="#3D4B55" stroke-width="2"/>
+<text x="205" y="325" font-size="25" font-weight="760" text-anchor="middle" class="t">Browser</text>
+<text x="205" y="360" font-size="18" font-weight="600" text-anchor="middle" fill="#C9D1D9">SvelteKit UI</text>
+<text x="205" y="388" font-size="14" text-anchor="middle" class="m">127.0.0.1:5173</text></g>
+
+<g class="node"><rect x="380" y="265" width="255" height="165" rx="24" fill="#121A27" stroke="#4B4A75" stroke-width="2"/>
+<text x="507" y="303" font-size="25" font-weight="780" text-anchor="middle" class="t">HTTP API</text>
+<text x="507" y="342" font-size="16" font-weight="600" text-anchor="middle" fill="#C9D1D9">POST /api/chat</text>
+<text x="507" y="370" font-size="16" font-weight="600" text-anchor="middle" fill="#C9D1D9">GET /api/chat · SSE</text>
+<text x="507" y="398" font-size="15" text-anchor="middle" class="m">conversation endpoints</text></g>
+
+<g class="node"><rect x="380" y="505" width="255" height="145" rx="24" fill="#17192A" stroke="#6E40C9" stroke-width="2"/>
+<text x="507" y="542" font-size="24" font-weight="780" text-anchor="middle" fill="#E2D4FF">Run Registry</text>
+<text x="507" y="579" font-size="16" font-weight="650" text-anchor="middle" fill="#C9D1D9">activeRuns</text>
+<text x="507" y="607" font-size="15" text-anchor="middle" fill="#C9D1D9">SSE buffer + subscribers</text>
+<text x="507" y="632" font-size="14" text-anchor="middle" fill="#A7A4C2">lost on restart by design</text></g>
+
+<g class="node"><rect x="700" y="245" width="455" height="430" rx="28" fill="#111928" stroke="#57606A" stroke-width="2"/>
+<text x="725" y="280" font-size="15" font-weight="800" class="b">LANGGRAPH.JS</text>
+<text x="927" y="323" font-size="28" font-weight="790" text-anchor="middle" class="t">StateGraph Runtime</text>
+<rect x="755" y="360" width="345" height="64" rx="16" fill="#151F2D" stroke="#388BFD" stroke-width="1.6"/>
+<text x="927" y="399" font-size="21" font-weight="760" text-anchor="middle" fill="#D6E8FF">agent</text>
+<rect x="755" y="485" width="345" height="64" rx="16" fill="#151F2D" stroke="#388BFD" stroke-width="1.6"/>
+<text x="927" y="524" font-size="21" font-weight="760" text-anchor="middle" fill="#D6E8FF">tools</text>
+<line x1="927" y1="424" x2="927" y2="485" stroke="#58A6FF" stroke-width="3" marker-end="url(#a)"/>
+<path d="M870 485C820 465 820 445 870 424" fill="none" stroke="#58A6FF" stroke-width="2.4" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<text x="927" y="587" font-size="15" font-weight="650" text-anchor="middle" fill="#B6C2CF">checkpoint after every super-step</text>
+<text x="927" y="614" font-size="14" text-anchor="middle" class="m">durability: sync</text></g>
+
+<line x1="315" y1="345" x2="380" y2="345" stroke="#8B949E" stroke-width="3" marker-end="url(#a)"/>
+<line x1="635" y1="348" x2="700" y2="348" stroke="#8B949E" stroke-width="3" marker-end="url(#a)"/>
+<text x="667" y="330" font-size="13" font-weight="650" text-anchor="middle" fill="#AAB6C3">start / resume</text>
+<line x1="700" y1="565" x2="635" y2="565" stroke="#A371F7" stroke-width="2.5" stroke-dasharray="7 5" marker-end="url(#a)"/>
+<text x="667" y="548" font-size="13" font-weight="700" text-anchor="middle" class="p">events</text>
+<path d="M507 505L507 430" fill="none" stroke="#A371F7" stroke-width="2.2" stroke-dasharray="7 5" marker-end="url(#a)"/>
+<text x="530" y="472" font-size="13" font-weight="700" class="p">SSE replay</text>
+
+<rect x="1285" y="150" width="580" height="610" rx="30" fill="#0E141D" stroke="#27313B" stroke-width="2"/>
+<text x="1315" y="190" font-size="16" font-weight="800" class="b">LOCAL DEPENDENCIES + EXPLICIT EGRESS</text>
+<text x="1315" y="217" font-size="15" class="m">Inference and state stay local; Fetch is the intentional network capability</text>
+
+<g class="node"><rect x="1335" y="275" width="215" height="115" rx="22" fill="#132033" stroke="#388BFD" stroke-width="2"/>
+<text x="1442" y="314" font-size="25" font-weight="780" text-anchor="middle" class="t">Ollama</text>
+<text x="1442" y="347" font-size="16" text-anchor="middle" fill="#C9D1D9">Qwen3 · host</text>
+<text x="1442" y="372" font-size="14" text-anchor="middle" class="m">local inference</text></g>
+
+<g class="node"><rect x="1335" y="465" width="215" height="115" rx="22" fill="#101B19" stroke="#2EA043" stroke-width="2"/>
+<text x="1442" y="503" font-size="24" font-weight="780" text-anchor="middle" class="t">Memory MCP</text>
+<text x="1442" y="537" font-size="15" text-anchor="middle" fill="#C9D1D9">long-term knowledge</text>
+<text x="1442" y="561" font-size="14" text-anchor="middle" class="m">local</text></g>
+
+<g class="node"><rect x="1600" y="465" width="215" height="115" rx="22" fill="url(#eg)" stroke="#D29922" stroke-width="2"/>
+<text x="1707" y="503" font-size="24" font-weight="780" text-anchor="middle" class="go">Fetch MCP</text>
+<text x="1707" y="537" font-size="15" text-anchor="middle" fill="#E8D9A5">explicit HTTP egress</text>
+<text x="1707" y="561" font-size="14" text-anchor="middle" fill="#C6A65B">model-directed network</text></g>
+
+<g class="node"><rect x="1600" y="635" width="215" height="78" rx="20" fill="#17150F" stroke="#D29922"/>
+<text x="1707" y="670" font-size="22" font-weight="760" text-anchor="middle" class="go">Internet</text>
+<text x="1707" y="695" font-size="13" text-anchor="middle" fill="#C6A65B">only through Fetch</text></g>
+
+<path d="M1155 360L1245 360L1245 332L1335 332" fill="none" stroke="#58A6FF" stroke-width="2.6" marker-end="url(#a)"/>
+<text x="1245" y="345" font-size="13" font-weight="700" text-anchor="middle" class="b">model calls</text>
+<path d="M1155 505L1245 505L1245 522L1335 522" fill="none" stroke="#3FB950" stroke-width="2.6" marker-end="url(#g)"/>
+<text x="1245" y="490" font-size="13" font-weight="700" text-anchor="middle" class="gr">MCPAdapter</text>
+<path d="M1155 535L1270 535L1270 610L1575 610L1575 522L1600 522" fill="none" stroke="#D29922" stroke-width="2.6" marker-end="url(#o)"/>
+<text x="1450" y="595" font-size="13" font-weight="700" text-anchor="middle" class="go">configured tool call</text>
+<line x1="1707" y1="580" x2="1707" y2="635" stroke="#D29922" stroke-width="2.6" marker-end="url(#o)"/>
+
+<line x1="70" y1="785" x2="1850" y2="785" stroke="#8957E5" stroke-width="2" stroke-dasharray="10 8"/>
+<rect x="1495" y="767" width="340" height="36" rx="18" fill="#18152E" stroke="#8957E5"/>
+<text x="1665" y="791" font-size="15" font-weight="700" text-anchor="middle" class="p">PROCESS RESTART BOUNDARY</text>
+<rect x="80" y="724" width="310" height="36" rx="18" fill="#18152E" stroke="#8957E5"/>
+<text x="235" y="748" font-size="15" font-weight="700" text-anchor="middle" class="p">SSE REPLAY ≠ PERSISTENCE</text>
+<rect x="795" y="724" width="320" height="36" rx="18" fill="#13261B" stroke="#2EA043"/>
+<text x="955" y="748" font-size="15" font-weight="700" text-anchor="middle" class="gr">CHECKPOINTS DEFINE RESUME</text>
+
+<rect x="55" y="815" width="1810" height="195" rx="30" fill="url(#dur)" stroke="#2EA043" stroke-width="2"/>
+<text x="85" y="853" font-size="16" font-weight="800" class="gr">DURABLE STATE · SURVIVES PROCESS RESTART</text>
+<text x="85" y="881" font-size="15" fill="#8ECF9D">The thread is the source of truth; streaming is only transport state</text>
+
+<g class="node"><rect x="105" y="910" width="760" height="72" rx="20" fill="#0F1D16" stroke="#2EA043"/>
+<text x="485" y="938" font-size="22" font-weight="780" text-anchor="middle" fill="#D8FFE1">SQLite · data/db/sophos.db</text>
+<text x="485" y="964" font-size="15" text-anchor="middle" fill="#B7F7C4">app tables: conversations + runs · LangGraph tables: checkpoints + writes</text></g>
+
+<g class="node"><rect x="925" y="910" width="390" height="72" rx="20" fill="#0F1D16" stroke="#2EA043"/>
+<text x="1120" y="938" font-size="20" font-weight="780" text-anchor="middle" fill="#D8FFE1">Restart / resume semantics</text>
+<text x="1120" y="964" font-size="14" text-anchor="middle" fill="#B7F7C4">running → interrupted · resume when checkpoint.next ≠ []</text></g>
+
+<g class="node"><rect x="1375" y="910" width="390" height="72" rx="20" fill="#0F1D16" stroke="#2EA043"/>
+<text x="1570" y="938" font-size="21" font-weight="780" text-anchor="middle" fill="#D8FFE1">memory.jsonl</text>
+<text x="1570" y="964" font-size="14" text-anchor="middle" fill="#B7F7C4">Memory MCP knowledge graph · separate durable store</text></g>
+
+<path d="M820 675L820 790L485 790L485 910" fill="none" stroke="#3FB950" stroke-width="2.8" marker-end="url(#g)"/>
+<text x="620" y="780" font-size="14" font-weight="700" text-anchor="middle" class="gr">sync checkpoint + run metadata</text>
+<path d="M1442 580L1442 800L1570 800L1570 910" fill="none" stroke="#3FB950" stroke-width="2.6" marker-end="url(#g)"/>
+<text x="1505" y="789" font-size="13" font-weight="700" text-anchor="middle" class="gr">knowledge</text>
+
+<text x="55" y="1050" font-size="14" font-weight="600" fill="#5E6A75">CognoKratos · sophos-agent</text>
+<text x="1865" y="1050" font-size="14" font-weight="600" text-anchor="end" fill="#5E6A75">Local-first · durable · resumable · inspectable</text>
+</svg>

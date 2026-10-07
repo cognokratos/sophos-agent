@@ -106,6 +106,10 @@ The documentation has two layers:
 
 ## 🧩 System Architecture (Conceptual)
 
+![Sophos Agent architecture](docs/assets/sophos-agent-architecture.svg)
+
+The key boundary is between the **ephemeral runtime** and **durable execution state**. The SvelteKit/LangGraph process, MCP connections and SSE replay buffer can disappear and be rebuilt; checkpoints and run metadata survive in SQLite. Streaming helps a browser reconnect to a live process, while checkpoints determine whether unfinished graph work can resume after that process dies.
+
 One Node process (the `web` service) contains:
 
 - **Chat UI and HTTP API** (SvelteKit): starts runs, streams them over SSE, serves conversations from durable state
