@@ -14,6 +14,16 @@ Sophos is a local-first agentic chat system: a SvelteKit app with an explicit si
 
 Sophos is the next question: **once you have an agent, how do you make it a durable, stateful, resumable, locally owned software system?** It is a hands-on reference for durable agent runtime engineering: state, checkpoints, memory, restart/resume, streaming, process lifecycle and local-first ownership, taught against code you can run, break and inspect.
 
+## Where Sophos fits in CognoKratos
+
+Sophos is **Part II — Durable Agent Runtime Engineering** in the current [CognoKratos curriculum](https://github.com/cognokratos/.github/blob/main/CURRICULUM.md), an open-source, community-built curriculum for engineers learning how to build autonomous systems that can exercise real capabilities without surrendering security, verifiability or human control.
+
+Part I asks how an agent is bounded. Sophos asks what happens when that bounded agent must live over time: who owns its process, what state is durable, what survives a crash, what replay means for side effects, and why persistence alone does not make an action safe to repeat.
+
+> **Core lesson:** Recoverable execution is not the same thing as exactly-once execution.
+
+The repository is a laboratory, not a claim that there is one correct runtime architecture. Read the [CognoKratos foundation](https://github.com/cognokratos/.github/blob/main/FOUNDATION.md), follow the structured synthesis in the [CognoKratos Book](https://book.cognokratos.com/part-2/introduction.html), or help [challenge and extend the curriculum](https://github.com/cognokratos/.github/blob/main/CONTRIBUTING.md).
+
 | I want to…                                      | Go to                                                                                                                         |
 | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | Learn production agent engineering from scratch | [simple-agent-template — Learning path](https://github.com/cognokratos/simple-agent-template/blob/main/docs/LEARNING-PATH.md) |
@@ -22,17 +32,17 @@ Sophos is the next question: **once you have an agent, how do you make it a dura
 | Run the app                                     | [Getting Started](#-getting-started)                                                                                          |
 | Look up how it is built                         | [Architecture reference](docs/architecture/index.md)                                                                          |
 
-### Where Sophos fits
+### Curriculum relationship
 
 ```text
-simple-agent-template    Production Agent Engineering       how to build a production agent
+simple-agent-template    Production Agent Engineering       how to build and bound an agent
         ↓
 sophos-agent             Durable Agent Runtime Engineering  how to make that agent durable software
         ↓
 etf-research-agent       Governed Decision Engineering      how to govern its decisions in a consequential domain
 ```
 
-The projects don't have to be done in order; the arrows show which questions build on which. [`etf-research-agent`](https://github.com/cognokratos/etf-research-agent) puts agent infrastructure into a domain where decisions have consequences.
+The projects do not have to be completed in order; the arrows show conceptual dependencies. [`etf-research-agent`](https://github.com/cognokratos/etf-research-agent) puts agent infrastructure into a domain where decisions have consequences.
 
 ---
 
@@ -167,6 +177,17 @@ Each lesson of the [runtime learning path](docs/RUNTIME-LEARNING-PATH.md) has a 
 - Delete every conversation and see which "memory" survives ([lesson 05](docs/runtime/05-memory-is-not-one-thing.md))
 
 Then design run cancellation, durable approvals or a replay-safe mutating tool in the [challenges](docs/runtime/CHALLENGES.md).
+
+---
+
+## 🤝 Contribute to the curriculum
+
+Sophos is meant to be challenged. Useful contributions include reproducible
+failure cases, better crash/replay experiments, stronger threat models,
+alternative durability designs and new labs that expose where the current
+architecture's assumptions stop holding.
+
+See the CognoKratos [contribution model](https://github.com/cognokratos/.github/blob/main/CONTRIBUTING.md).
 
 ---
 
